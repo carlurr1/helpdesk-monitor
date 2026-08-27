@@ -100,12 +100,15 @@ API (`SF_NIT_FIELD`, `SF_RECORD_TYPE`, `SF_CITY_FIELD`), Supabase (`SUPABASE_URL
 
 ## Sync automático (cron)
 
-Los casos se refrescan solos: `vercel.json` define un cron cada 5 min que llama a
-**`/api/sync`**, protegido con `CRON_SECRET` (Vercel lo envía como `Authorization: Bearer`).
+Los casos se refrescan con un cron que llama a **`/api/sync`**, protegido con
+`CRON_SECRET` (Vercel lo envía como `Authorization: Bearer`).
 
+- **`vercel.json`** usa `0 11 * * *` (diario, 6 a.m. Colombia) — el máximo que
+  permite el plan **Hobby**. En **Pro**, cámbialo a `*/5 * * * *` (cada 5 min).
+- **Sync frecuente en Hobby (gratis):** un cron externo (cron-job.org) o un
+  GitHub Action que haga `curl` a `/api/sync` cada pocos minutos.
 - **Manual:** `curl -H "Authorization: Bearer <CRON_SECRET>" https://TU-APP.vercel.app/api/sync`
 - El endpoint corre el mismo `syncCasos()` que `npm run sync` (SF → `casos`).
-- Crons sub-diarios y `maxDuration` alto requieren **Vercel Pro**; en Hobby, dispáralo manual.
 
 ## Roadmap
 
