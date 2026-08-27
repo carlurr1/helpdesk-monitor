@@ -1,0 +1,24 @@
+# dependencias
+node_modules/
+
+# entorno / secretos  ← NUNCA subir credenciales
+.env
+.env.local
+.env*.local
+
+# next
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# datos locales (la base de clientes no va al repo)
+*.xlsx
+*.xls
+*.csv
+
+# sistema / editor
+.DS_Store
+*.log
+.vscode/
+.idea/
