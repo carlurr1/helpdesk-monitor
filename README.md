@@ -93,9 +93,19 @@ npm run dev
 ## Variables de entorno
 
 Ver `.env.example`. Salesforce (`SF_USERNAME/PASSWORD/TOKEN/DOMAIN`), nombres de campo
-API (`SF_NIT_FIELD`, `SF_RECORD_TYPE`, `SF_CITY_FIELD`) y Supabase (`SUPABASE_URL`,
-`SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
-Las credenciales van solo en `.env.local` y en las *Environment Variables* de Vercel.
+API (`SF_NIT_FIELD`, `SF_RECORD_TYPE`, `SF_CITY_FIELD`), Supabase (`SUPABASE_URL`,
+`SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) y
+`CRON_SECRET` (protege el sync). Las credenciales van solo en `.env.local` y en las
+*Environment Variables* de Vercel.
+
+## Sync automático (cron)
+
+Los casos se refrescan solos: `vercel.json` define un cron cada 5 min que llama a
+**`/api/sync`**, protegido con `CRON_SECRET` (Vercel lo envía como `Authorization: Bearer`).
+
+- **Manual:** `curl -H "Authorization: Bearer <CRON_SECRET>" https://TU-APP.vercel.app/api/sync`
+- El endpoint corre el mismo `syncCasos()` que `npm run sync` (SF → `casos`).
+- Crons sub-diarios y `maxDuration` alto requieren **Vercel Pro**; en Hobby, dispáralo manual.
 
 ## Roadmap
 
