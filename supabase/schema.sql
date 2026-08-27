@@ -28,7 +28,7 @@ create index if not exists idx_clientes_segmento on clientes(segmento);
 create table if not exists casos (
   id                text primary key,    -- SF Case Id
   numero            text,                -- CaseNumber
-  nit               text,               -- Account."Número de Documento"
+  nit               text,               -- Case.AccountNumber__c ("Nit Cliente")
   cuenta_nombre     text,               -- Account.Name
   tipo_registro     text,               -- RecordType.Name (debe ser 'SOPORTE TECNICO')
   estado            text,               -- Status
