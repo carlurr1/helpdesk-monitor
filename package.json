@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "ingest": "tsx scripts/ingest-clientes.ts",
-    "ingest:dry": "tsx scripts/ingest-clientes.ts --dry"
+    "ingest:dry": "tsx scripts/ingest-clientes.ts --dry",
+    "sync": "tsx scripts/sync-casos.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

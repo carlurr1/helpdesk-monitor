@@ -85,9 +85,9 @@ export async function sfQueryAll(session: SFSession, soql: string): Promise<any[
 
 // ── Configuración de campos (nombres API reales van en .env) ──
 export const SF_CFG = {
-  NIT_FIELD:   process.env.SF_NIT_FIELD   || 'Numero_de_Documento__c',
+  NIT_FIELD:   process.env.SF_NIT_FIELD   || 'AccountNumber__c',      // "Nit Cliente" (campo del Caso)
   RECORD_TYPE: process.env.SF_RECORD_TYPE || 'SOPORTE TECNICO',
-  CITY_FIELD:  process.env.SF_CITY_FIELD  || 'Ciudad_Instalacion__c',
+  CITY_FIELD:  process.env.SF_CITY_FIELD  || 'Ciudad_Instalacion__c', // "Ciudad Instalacion"
   STATE_FIELD: process.env.SF_STATE_FIELD || '',
   WINDOW_DAYS: parseInt(process.env.SF_WINDOW_DAYS || '60', 10),
 }
@@ -102,15 +102,16 @@ function sanitizeField(name: string): string {
  * Trae abiertos + cerrados dentro de la ventana. El owner NO se filtra.
  */
 export function buildCasesSOQL(): string {
-  const nit  = sanitizeField(SF_CFG.NIT_FIELD)
-  const city = sanitizeField(SF_CFG.CITY_FIELD)
+  const nit  = sanitizeField(SF_CFG.NIT_FIELD)  || 'AccountNumber__c'
+  const city = sanitizeField(SF_CFG.CITY_FIELD) || 'Ciudad_Instalacion__c'
   const days = SF_CFG.WINDOW_DAYS
+  // NIT y ciudad son campos DIRECTOS del Caso (AccountNumber__c = "Nit Cliente").
   const cols = [
     'Id', 'CaseNumber', 'Status', 'IsClosed', 'CreatedDate', 'ClosedDate',
-    'RecordType.Name', 'Account.Name',
-    nit  ? `Account.${nit}` : null,
-    city ? city : null,
-  ].filter(Boolean).join(', ')
+    'RecordType.Name', 'Account.Name', nit, city,
+    'Tipologia__c', 'TipoCaso__c', 'Categoria_legado__c',
+    'FechaInicioAfectacion__c', 'FechaFinAfectacion__c',
+  ].join(', ')
 
   return `SELECT ${cols}
     FROM Case
