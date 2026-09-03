@@ -36,7 +36,9 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
         </h3>
         <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} casos ubicados</span>
       </div>
-      <MapContainer center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>
+      {/* key = alcance del mapa: react-leaflet solo aplica center/zoom al montar,
+          así que forzamos el remonte cuando se cambia entre Bogotá y Colombia. */}
+      <MapContainer key={esBogota ? 'bogota' : 'colombia'} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {puntos.map((p, i) => (
           <CircleMarker
