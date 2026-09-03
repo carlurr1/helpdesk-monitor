@@ -1,5 +1,5 @@
 // Lógica de sync SF → Supabase.casos, reutilizable por el script y el endpoint.
-import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG } from './salesforce'
+import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG, cityNameFromRecord } from './salesforce'
 import { normalizarNit } from './segmentos'
 import { resolverGeo } from './geo'
 import { supabaseServer } from './supabase'
@@ -13,11 +13,12 @@ export async function syncCasos(): Promise<SyncResult> {
   const records = await sfQueryAll(login, soql)
 
   const nitField  = SF_CFG.NIT_FIELD
-  const cityField = SF_CFG.CITY_FIELD
 
   const casos = records.map((c: any) => {
-    const ciudad = String(c[cityField] ?? '')
-    const geo = resolverGeo({ ciudad })
+    // Nombre legible de la ciudad (resuelve el lookup; nunca guarda el Id crudo).
+    const ciudad = cityNameFromRecord(c)
+    // La ciudad puede ser en realidad una localidad de Bogotá; resolverGeo lo maneja.
+    const geo = resolverGeo({ ciudad, localidad: ciudad })
     return {
       id:                c.Id,
       numero:            c.CaseNumber ?? '',

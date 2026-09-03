@@ -6,7 +6,11 @@ import { SEG_COLOR } from '@/lib/colors'
 
 interface Punto { lat: number; lng: number; ciudad: string; seg: string; count: number }
 
-// Mapa adaptativo: Bogotá para Distrito, nacional para el resto.
+// Segmentos distritales (operación 100 % en Bogotá): el mapa se centra en la
+// ciudad. El resto de segmentos (y "Todos") usan la vista nacional de Colombia.
+const SEGMENTOS_BOGOTA = ['Distrito', 'Élite']
+
+// Mapa adaptativo: Bogotá para Distrito y Élite, nacional para el resto.
 // Agrupa los casos por coordenada para no pintar miles de marcadores.
 export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: string }) {
   const grupos = new Map<string, Punto>()
@@ -19,15 +23,17 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
   }
   const puntos = [...grupos.values()]
   const totalGeo = puntos.reduce((a, p) => a + p.count, 0)
-  const esDistrito = segmento === 'Distrito'
-  const center: [number, number] = esDistrito ? [4.65, -74.09] : [4.6, -74.3]
-  const zoom = esDistrito ? 11 : 6
+  const esBogota = SEGMENTOS_BOGOTA.includes(segmento)
+  const center: [number, number] = esBogota ? [4.65, -74.09] : [4.6, -74.3]
+  const zoom = esBogota ? 11 : 6
   const maxC = Math.max(1, ...puntos.map((p) => p.count))
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Mapa</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+          {esBogota ? 'Mapa · Bogotá' : 'Mapa · Colombia'}
+        </h3>
         <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} casos ubicados</span>
       </div>
       <MapContainer center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>

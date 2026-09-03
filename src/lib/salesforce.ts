@@ -88,6 +88,11 @@ export const SF_CFG = {
   NIT_FIELD:   process.env.SF_NIT_FIELD   || 'AccountNumber__c',      // "Nit Cliente" (campo del Caso)
   RECORD_TYPE: process.env.SF_RECORD_TYPE || 'SOPORTE TECNICO',
   CITY_FIELD:  process.env.SF_CITY_FIELD  || 'Ciudad_Instalacion__c', // "Ciudad Instalacion"
+  // Cuando la ciudad es un lookup a otro objeto, el campo directo devuelve el
+  // Id (p.ej. "a014000000QybGpAAJ") y el mapa no puede ubicar nada. Con este
+  // campo pedimos el nombre legible por la relación (…__r.Name). Se autodetecta
+  // desde CITY_FIELD si no se define en .env; déjalo vacío si la ciudad ya es texto.
+  CITY_NAME_FIELD: process.env.SF_CITY_NAME_FIELD ?? deriveRelationshipName(process.env.SF_CITY_FIELD || 'Ciudad_Instalacion__c'),
   STATE_FIELD: process.env.SF_STATE_FIELD || '',
   WINDOW_DAYS: parseInt(process.env.SF_WINDOW_DAYS || '60', 10),
 }
@@ -98,17 +103,36 @@ function sanitizeField(name: string): string {
 }
 
 /**
+ * Deriva la ruta de relación …__r.Name a partir de un campo lookup …__c.
+ * Ej: 'Ciudad_Instalacion__c' → 'Ciudad_Instalacion__r.Name'.
+ * Si el campo no es un lookup custom (__c) devuelve '' (no se pide el nombre).
+ */
+export function deriveRelationshipName(field: string): string {
+  const f = String(field || '').trim()
+  return /__c$/.test(f) ? `${f.replace(/__c$/, '__r')}.Name` : ''
+}
+
+/** true si el valor parece un Id de Salesforce (15 o 18 caracteres alfanuméricos). */
+export function looksLikeSalesforceId(v: unknown): boolean {
+  return /^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(String(v ?? '').trim())
+}
+
+/**
  * SOQL de casos con las 3 reglas: SOPORTE TECNICO, sin Cancelado, todo por NIT.
  * Trae abiertos + cerrados dentro de la ventana. El owner NO se filtra.
  */
 export function buildCasesSOQL(): string {
   const nit  = sanitizeField(SF_CFG.NIT_FIELD)  || 'AccountNumber__c'
   const city = sanitizeField(SF_CFG.CITY_FIELD) || 'Ciudad_Instalacion__c'
+  const cityName = sanitizeField(SF_CFG.CITY_NAME_FIELD) // ruta …__r.Name (nombre legible)
   const days = SF_CFG.WINDOW_DAYS
   // NIT y ciudad son campos DIRECTOS del Caso (AccountNumber__c = "Nit Cliente").
+  // Si la ciudad es un lookup, pedimos también el nombre por la relación para no
+  // guardar el Id crudo en el mapa.
   const cols = [
     'Id', 'CaseNumber', 'Status', 'IsClosed', 'CreatedDate', 'ClosedDate',
     'RecordType.Name', 'Account.Name', nit, city,
+    ...(cityName ? [cityName] : []),
     'Tipologia__c', 'TipoCaso__c', 'Categoria_legado__c',
     'FechaInicioAfectacion__c', 'FechaFinAfectacion__c',
   ].join(', ')
@@ -129,6 +153,25 @@ export function chunkArray<T>(arr: T[], size: number): T[][] {
 
 export function safeValue(v: unknown): string {
   return v === null || v === undefined ? '' : String(v)
+}
+
+/**
+ * Devuelve el nombre legible de la ciudad de un registro de Caso.
+ * Prioriza el nombre por la relación (…__r.Name); si no existe, usa el campo
+ * directo solo cuando NO parece un Id de Salesforce (evita pintar "a014…" ).
+ */
+export function cityNameFromRecord(record: any): string {
+  // 1) Nombre por la relación (p.ej. Ciudad_Instalacion__r.Name)
+  const relField = SF_CFG.CITY_NAME_FIELD // 'Ciudad_Instalacion__r.Name'
+  if (relField) {
+    const [rel, prop = 'Name'] = relField.split('.')
+    const relName = record?.[rel]?.[prop]
+    if (relName) return String(relName).trim()
+  }
+  // 2) Campo directo, solo si es texto legible (no un Id)
+  const direct = record?.[SF_CFG.CITY_FIELD]
+  if (direct != null && !looksLikeSalesforceId(direct)) return String(direct).trim()
+  return ''
 }
 
 export function fmtLocal(d: string | Date | null): string {
