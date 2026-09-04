@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { sfLogin, sfQuery, SF_CFG } from '@/lib/salesforce'
-import { resolverGeo, geolocalizarTexto } from '@/lib/geo'
+import { resolverGeo, geolocalizarTexto, extraerCoordenadas } from '@/lib/geo'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -32,9 +32,13 @@ async function run(req: Request) {
     const muestras = (data.records || []).map((r: any) => {
       const nombre = rel ? r?.[rel]?.[prop] ?? null : null
       const direccion = addr ? (addr.includes('.') ? addr.split('.').reduce((o: any, k: string) => o?.[k], r) : r?.[addr]) ?? null : null
-      let geo = resolverGeo({ ciudad: nombre, localidad: nombre })
-      let via = geo ? `catálogo:${geo.fuente}` : null
+      let geo: { lat: number; lng: number } | null = null
+      let via: string | null = null
+      const coord = extraerCoordenadas(direccion) || extraerCoordenadas(nombre)
+      if (coord) { geo = coord; via = 'coordenada' }
       if (!geo) { const t = geolocalizarTexto(nombre, direccion); if (t) { geo = t.geo; via = `texto→${t.nombre}` } }
+      if (!geo) { const c = resolverGeo({ ciudad: nombre, localidad: nombre }); if (c) { geo = c; via = `catálogo:${c.fuente}` } }
+      // Nota: el sync además usa Nominatim para lo que aquí quede sin ubicar.
       return {
         caso: r.CaseNumber,
         ciudadId: r[city] ?? null,

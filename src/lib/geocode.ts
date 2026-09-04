@@ -7,7 +7,7 @@
 //  Nunca rompe el sync: cualquier fallo devuelve null y el caso sigue contando.
 // ============================================================
 import { supabaseServer } from './supabase'
-import { resolverGeo, geolocalizarTexto } from './geo'
+import { resolverGeo, geolocalizarTexto, extraerCoordenadas } from './geo'
 
 export interface GeoResuelto { lat: number; lng: number; ciudad: string; fuente: string }
 
@@ -55,13 +55,19 @@ export class Geocoder {
    * población (Ciudad_Instalacion__r.Name); `direccion` es Direccion_Instalacion__c.
    */
   async resolver(ciudadNombre: string, direccion: string): Promise<GeoResuelto | null> {
-    // 1) Catálogo exacto por nombre de ciudad/localidad.
+    // 0) Coordenadas embebidas en la dirección (lo más preciso).
+    const coord = extraerCoordenadas(direccion) || extraerCoordenadas(ciudadNombre)
+    if (coord) return { ...coord, ciudad: ciudadNombre.trim() || 'Ubicado', fuente: 'coordenada' }
+
+    // 1) Token de localidad/ciudad dentro del texto (ciudad + dirección). Va
+    //    primero que el catálogo simple para preferir la LOCALIDAD (p.ej. Puente
+    //    Aranda) sobre el centro genérico de Bogotá cuando la dirección la nombra.
+    const t = geolocalizarTexto(ciudadNombre, direccion)
+    if (t) return { lat: t.geo.lat, lng: t.geo.lng, ciudad: ciudadNombre.trim() || t.nombre, fuente: 'texto' }
+
+    // 2) Catálogo (incluye departamento como último recurso del diccionario).
     const cat = resolverGeo({ ciudad: ciudadNombre, localidad: ciudadNombre })
     if (cat) return { lat: cat.lat, lng: cat.lng, ciudad: ciudadNombre.trim(), fuente: cat.fuente }
-
-    // 2) Token de localidad/ciudad dentro del texto (ciudad + dirección).
-    const t = geolocalizarTexto(ciudadNombre, direccion)
-    if (t) return { lat: t.geo.lat, lng: t.geo.lng, ciudad: t.nombre, fuente: 'texto' }
 
     // 3) Geocodificador real sobre la dirección (con caché).
     const consulta = (direccion || ciudadNombre || '').trim()
