@@ -4,7 +4,7 @@ import { normalizarNit } from './segmentos'
 import { Geocoder } from './geocode'
 import { supabaseServer } from './supabase'
 
-export interface SyncResult { count: number; soql: string; geocodificados: number }
+export interface SyncResult { count: number; soql: string; geocodificados: number; ubicados: number }
 
 /** Trae los casos de SF (solo SOPORTE TECNICO, sin Cancelado, por NIT) y los upserta en Supabase. */
 export async function syncCasos(): Promise<SyncResult> {
@@ -71,5 +71,6 @@ export async function syncCasos(): Promise<SyncResult> {
     }
     if (error) throw new Error(`Supabase upsert (lote ${i}): ${error.message}`)
   }
-  return { count: casos.length, soql, geocodificados: geocoder.llamadasHechas }
+  const ubicados = casos.filter((c) => c.lat != null && c.lng != null).length
+  return { count: casos.length, soql, geocodificados: geocoder.llamadasHechas, ubicados }
 }
