@@ -110,6 +110,28 @@ export default function Admin() {
     }
   }
 
+  async function verMuestra() {
+    if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
+    setBusy(true)
+    push('Trayendo datos de ejemplo (ciudad + dirección) desde Salesforce…')
+    try {
+      const res = await fetch('/api/sf-sample?n=15', { headers: { Authorization: `Bearer ${secret}` } })
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      push(`Campos → ciudad: ${j.campos.cityName || j.campos.city} · dirección: ${j.campos.addr}`)
+      push(`Ubicados ${j.ubicados}/${j.totalMuestra} (sin ubicar: ${j.sinUbicar})`)
+      j.muestras.forEach((m: any) => {
+        const geo = m.ubicado ? `✅ ${m.ubicado.via}` : '❌ sin ubicar'
+        push(`  ${m.caso} | ciudad="${m.ciudadNombre ?? '∅'}" | dir="${m.direccion ?? '∅'}" | ${geo}`)
+      })
+      push('👉 Copiame estas líneas y ajusto el catálogo de geo para que ubiquen.')
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -181,6 +203,13 @@ export default function Admin() {
             className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
           >
             Diagnóstico de campos SF
+          </button>
+          <button
+            onClick={verMuestra} disabled={busy}
+            title="Muestra los valores reales de ciudad y dirección de unos casos y si se ubican en el mapa"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Ver datos de ejemplo
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
