@@ -79,8 +79,9 @@ export default function Admin() {
       const res = await fetch('/api/sync', { method: 'POST', headers: { Authorization: `Bearer ${secret}` } })
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || 'Error')
-      push(`✅ ${Number(j.count).toLocaleString('es-CO')} casos sincronizados${j.geocodificados ? ` · ${j.geocodificados} direcciones geocodificadas (nuevas)` : ''}.`)
-      if (j.geocodificados >= 45) push('ℹ️ Se alcanzó el tope de geocodificación por corrida; vuelve a sincronizar para completar el resto (usa la caché, es rápido).')
+      push(`✅ ${Number(j.count).toLocaleString('es-CO')} casos sincronizados · ${Number(j.ubicados ?? 0).toLocaleString('es-CO')} ubicados en el mapa${j.geocodificados ? ` · ${j.geocodificados} geocodificadas` : ''}.`)
+      if ((j.ubicados ?? 0) === 0) push('⚠️ 0 ubicados: los casos no traen ciudad ni dirección reconocibles. Corre "Ver datos de ejemplo" y compártelo.')
+      else push('👉 Abre el tablero: el mapa de calor ya debería marcar.')
       cargarHealth()
     } catch (e: any) {
       push('❌ ' + (e?.message || e) + '  — si dice timeout/504, en plan Hobby el sync se corta a los 10s; ahí toca Vercel Pro.')
