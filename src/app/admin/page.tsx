@@ -88,6 +88,28 @@ export default function Admin() {
     }
   }
 
+  async function diagnosticarCampos() {
+    if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
+    setBusy(true)
+    push('Consultando nombres de campos en Salesforce (Case)…')
+    try {
+      const res = await fetch('/api/sf-fields', { headers: { Authorization: `Bearer ${secret}` } })
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      push(`Config actual → ciudad: ${j.configActual.SF_CITY_FIELD} · nombre: ${j.configActual.SF_CITY_NAME_FIELD || '(vacío)'} · dirección: ${j.configActual.SF_ADDRESS_FIELD}`)
+      if (!j.candidatos.length) push('No se hallaron campos con nombre de ciudad/dirección. Revisa permisos del usuario SF.')
+      j.candidatos.forEach((c: any) => {
+        const ref = c.type === 'reference' ? ` → lookup a ${(c.referenceTo || []).join('/')}; usa ${c.relationshipName}.Name` : ''
+        push(`  • ${c.name}  [${c.type}]  "${c.label}"${ref}`)
+      })
+      push('👉 Pásame estos nombres y configuro SF_CITY_FIELD / SF_CITY_NAME_FIELD / SF_ADDRESS_FIELD.')
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -146,12 +168,22 @@ export default function Admin() {
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">3. Traer casos de Salesforce</h2>
         <p className="mb-3 text-xs text-slate-400">Consulta SF (solo SOPORTE TECNICO, sin Cancelado) y guarda los casos.</p>
-        <button
-          onClick={sincronizar} disabled={busy}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? 'Trabajando…' : 'Sincronizar casos ahora'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={sincronizar} disabled={busy}
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? 'Trabajando…' : 'Sincronizar casos ahora'}
+          </button>
+          <button
+            onClick={diagnosticarCampos} disabled={busy}
+            title="Muestra los nombres reales de los campos de ciudad/dirección en Salesforce"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Diagnóstico de campos SF
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
       </section>
 
       {/* Log */}

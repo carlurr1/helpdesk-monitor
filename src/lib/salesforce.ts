@@ -83,6 +83,16 @@ export async function sfQueryAll(session: SFSession, soql: string): Promise<any[
   return records
 }
 
+/** Describe un sObject (metadatos de campos). Sirve para diagnóstico de nombres. */
+export async function sfDescribe(session: SFSession, sobject = 'Case'): Promise<any> {
+  const url = `${session.instanceUrl}/services/data/v59.0/sobjects/${sobject}/describe`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${session.sessionId}`, 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`SF describe error ${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
 // ── Configuración de campos (nombres API reales van en .env) ──
 export const SF_CFG = {
   NIT_FIELD:   process.env.SF_NIT_FIELD   || 'AccountNumber__c',      // "Nit Cliente" (campo del Caso)
@@ -94,6 +104,10 @@ export const SF_CFG = {
   // desde CITY_FIELD si no se define en .env; déjalo vacío si la ciudad ya es texto.
   CITY_NAME_FIELD: process.env.SF_CITY_NAME_FIELD ?? deriveRelationshipName(process.env.SF_CITY_FIELD || 'Ciudad_Instalacion__c'),
   STATE_FIELD: process.env.SF_STATE_FIELD || '',
+  // Campo de dirección del Caso. Se usa SOLO para geolocalizar (cruzar el texto
+  // con localidades/ciudades, como el script de GAS); no se guarda crudo. Vacío
+  // = no se pide. Ej: 'Direccion_Instalacion__c'.
+  ADDRESS_FIELD: process.env.SF_ADDRESS_FIELD || '',
   WINDOW_DAYS: parseInt(process.env.SF_WINDOW_DAYS || '60', 10),
 }
 
@@ -129,10 +143,12 @@ export function buildCasesSOQL(): string {
   // NIT y ciudad son campos DIRECTOS del Caso (AccountNumber__c = "Nit Cliente").
   // Si la ciudad es un lookup, pedimos también el nombre por la relación para no
   // guardar el Id crudo en el mapa.
+  const address = sanitizeField(SF_CFG.ADDRESS_FIELD) // dirección (solo para geolocalizar)
   const cols = [
     'Id', 'CaseNumber', 'Status', 'IsClosed', 'CreatedDate', 'ClosedDate',
     'RecordType.Name', 'Account.Name', nit, city,
     ...(cityName ? [cityName] : []),
+    ...(address ? [address] : []),
     'Tipologia__c', 'TipoCaso__c', 'Categoria_legado__c',
     'FechaInicioAfectacion__c', 'FechaFinAfectacion__c',
   ].join(', ')
@@ -172,6 +188,21 @@ export function cityNameFromRecord(record: any): string {
   const direct = record?.[SF_CFG.CITY_FIELD]
   if (direct != null && !looksLikeSalesforceId(direct)) return String(direct).trim()
   return ''
+}
+
+/**
+ * Devuelve el texto de dirección del Caso (si SF_ADDRESS_FIELD está configurado).
+ * Soporta campos directos y de relación (…__r.Campo). Solo se usa para
+ * geolocalizar por texto; nunca se guarda crudo si parece un Id.
+ */
+export function addressFromRecord(record: any): string {
+  const field = SF_CFG.ADDRESS_FIELD
+  if (!field) return ''
+  const val = field.includes('.')
+    ? field.split('.').reduce((o: any, k: string) => o?.[k], record)
+    : record?.[field]
+  if (val == null || looksLikeSalesforceId(val)) return ''
+  return String(val).trim()
 }
 
 export function fmtLocal(d: string | Date | null): string {
