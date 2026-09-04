@@ -146,6 +146,22 @@ function capitalizar(s: string): string {
 }
 
 /**
+ * Resuelve la ubicación de un caso SOLO con lógica local (sin red): coordenadas
+ * embebidas → localidad/ciudad en el texto → catálogo. Sirve para ubicar en el
+ * navegador aunque el sync no haya guardado lat/lng. Devuelve null si no hay con
+ * qué ubicar (ahí solo Nominatim en el sync podría, si hay dirección).
+ */
+export function geoDeCaso(ciudad?: string | null, direccion?: string | null): { lat: number; lng: number } | null {
+  const coord = extraerCoordenadas(direccion) || extraerCoordenadas(ciudad)
+  if (coord) return coord
+  const t = geolocalizarTexto(ciudad, direccion)
+  if (t) return { lat: t.geo.lat, lng: t.geo.lng }
+  const c = resolverGeo({ ciudad: ciudad ?? undefined, localidad: ciudad ?? undefined })
+  if (c) return { lat: c.lat, lng: c.lng }
+  return null
+}
+
+/**
  * Resuelve coordenadas a partir de ciudad (y opcionalmente departamento/localidad).
  * Devuelve null si no se pudo ubicar → el caso igual cuenta, solo no se pinta.
  */

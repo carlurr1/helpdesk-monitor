@@ -9,6 +9,7 @@ import { CasosTablaSemaforo } from './dash/CasosTablaSemaforo'
 import { Filtros } from './dash/Filtros'
 import { ExportExcel } from './dash/ExportExcel'
 import { computeOperativo, computeEjecutivo, categoriaDe, type Categoria } from '@/lib/metrics'
+import { geoDeCaso } from '@/lib/geo'
 import { ETB } from '@/lib/colors'
 import type { ApiCasos, Caso } from '@/lib/types'
 
@@ -53,6 +54,10 @@ export default function Dashboard() {
     return true
   }), [rows, cats, estado])
 
+  const ubicados = useMemo(
+    () => rowsFiltradas.filter((r) => (r.lat != null && r.lng != null) || geoDeCaso(r.ciudad, r.direccion)).length,
+    [rowsFiltradas],
+  )
   const op = useMemo(() => computeOperativo(rowsFiltradas, now), [rowsFiltradas, now])
   const ej = useMemo(() => computeEjecutivo(rowsFiltradas, now), [rowsFiltradas, now])
 
@@ -107,7 +112,7 @@ export default function Dashboard() {
             <KpiTile label="Prom. cierres/día" value={op.kpis.cierresDiaProm} accent={ETB.teal} />
             <KpiTile label="Ingresos hoy" value={op.kpis.ingresosHoy} accent={ETB.yellow} />
             <KpiTile label="Cierres hoy" value={op.kpis.cierresHoy} accent={ETB.green} />
-            <KpiTile label="Ubicados en mapa" value={data.kpis.ubicados} accent={ETB.blue} meta="Con coordenadas" />
+            <KpiTile label="Ubicados en mapa" value={ubicados} accent={ETB.blue} meta="Con ubicación" />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
