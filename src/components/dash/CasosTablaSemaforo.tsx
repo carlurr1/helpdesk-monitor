@@ -41,12 +41,12 @@ export function CasosTablaSemaforo({ rows, now }: { rows: Caso[]; now: Date }) {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[1050px] text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
               <th className="px-4 py-2">Semáforo</th><th className="px-4 py-2">Caso</th><th className="px-4 py-2">Cliente</th>
               <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Categoría</th><th className="px-4 py-2">Tipología</th>
-              <th className="px-4 py-2">Ciudad</th><th className="px-4 py-2">Apertura</th><th className="px-4 py-2">Antigüedad</th>
+              <th className="px-4 py-2">Ciudad</th><th className="px-4 py-2">Dirección</th><th className="px-4 py-2">Apertura</th><th className="px-4 py-2">Antigüedad</th>
             </tr>
           </thead>
           <tbody>
@@ -59,11 +59,12 @@ export function CasosTablaSemaforo({ rows, now }: { rows: Caso[]; now: Date }) {
                 <td className="px-4 py-2 text-slate-600">{categoriaDe(r)}</td>
                 <td className="px-4 py-2 text-slate-500">{r.tipologia || '—'}</td>
                 <td className="px-4 py-2 text-slate-600">{ciudadLegible(r.ciudad)}</td>
+                <td className="max-w-[220px] truncate px-4 py-2 text-slate-500" title={r.direccion || ''}>{r.direccion || '—'}</td>
                 <td className="px-4 py-2 text-slate-500">{fecha(r.fecha_apertura)}</td>
                 <td className="px-4 py-2 font-semibold text-slate-700">{edad.toLocaleString('es-CO')} d</td>
               </tr>
             ))}
-            {!visibles.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">Sin casos para este filtro.</td></tr>}
+            {!visibles.length && <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">Sin casos para este filtro.</td></tr>}
           </tbody>
         </table>
       </div>
