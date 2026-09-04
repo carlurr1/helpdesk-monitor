@@ -7,6 +7,7 @@ import 'leaflet.heat'
 import type { Caso } from '@/lib/types'
 import { SEG_COLOR } from '@/lib/colors'
 import { ciudadLegible } from '@/lib/format'
+import { geoDeCaso } from '@/lib/geo'
 
 interface Punto { lat: number; lng: number; ciudad: string; seg: string; count: number }
 type Vista = 'calor' | 'puntos'
@@ -43,11 +44,18 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
   const puntos = useMemo(() => {
     const grupos = new Map<string, Punto>()
     for (const r of rows) {
-      if (r.lat == null || r.lng == null) continue
-      const key = `${r.lat.toFixed(4)},${r.lng.toFixed(4)}`
+      // Usa lat/lng guardadas; si no hay, resuelve en el navegador desde
+      // ciudad + dirección (coordenadas embebidas / localidad / ciudad).
+      let lat = r.lat, lng = r.lng
+      if (lat == null || lng == null) {
+        const g = geoDeCaso(r.ciudad, r.direccion)
+        if (g) { lat = g.lat; lng = g.lng }
+      }
+      if (lat == null || lng == null) continue
+      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`
       const g = grupos.get(key)
       if (g) g.count++
-      else grupos.set(key, { lat: r.lat, lng: r.lng, ciudad: ciudadLegible(r.ciudad, 'Sin ciudad'), seg: r.segmento, count: 1 })
+      else grupos.set(key, { lat, lng, ciudad: ciudadLegible(r.ciudad, 'Sin ciudad'), seg: r.segmento, count: 1 })
     }
     return [...grupos.values()]
   }, [rows])

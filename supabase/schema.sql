@@ -40,6 +40,7 @@ create table if not exists casos (
   inicio_afectacion timestamptz,        -- FechaInicioAfectacion__c → TMS
   fin_afectacion    timestamptz,        -- FechaFinAfectacion__c
   ciudad            text,               -- de SF → mapa nacional
+  direccion         text,               -- Direccion_Instalacion__c (para ubicar en el navegador)
   departamento      text,
   lat               double precision,
   lng               double precision,

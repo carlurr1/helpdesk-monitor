@@ -45,6 +45,7 @@ export async function syncCasos(): Promise<SyncResult> {
       inicio_afectacion: c.FechaInicioAfectacion__c ?? null,
       fin_afectacion:    c.FechaFinAfectacion__c ?? null,
       ciudad,
+      direccion:         direccion || null,
       departamento:      null as string | null,
       lat:               geo?.lat ?? null,
       lng:               geo?.lng ?? null,
@@ -55,9 +56,19 @@ export async function syncCasos(): Promise<SyncResult> {
   await geocoder.guardarCache()
 
   const sb = supabaseServer()
+  // Si la columna `direccion` aún no existe en la tabla, degradamos: reintentamos
+  // sin ese campo (el navegador igual ubica por ciudad). Recomendado: correr
+  //   alter table casos add column if not exists direccion text;
+  let sinDireccion = false
   for (let i = 0; i < casos.length; i += 500) {
-    const lote = casos.slice(i, i + 500)
-    const { error } = await sb.from('casos').upsert(lote, { onConflict: 'id' })
+    let lote = casos.slice(i, i + 500)
+    if (sinDireccion) lote = lote.map(({ direccion, ...resto }) => resto) as typeof lote
+    let { error } = await sb.from('casos').upsert(lote, { onConflict: 'id' })
+    if (error && !sinDireccion && /direccion/i.test(error.message)) {
+      sinDireccion = true
+      lote = lote.map(({ direccion, ...resto }) => resto) as typeof lote
+      ;({ error } = await sb.from('casos').upsert(lote, { onConflict: 'id' }))
+    }
     if (error) throw new Error(`Supabase upsert (lote ${i}): ${error.message}`)
   }
   return { count: casos.length, soql, geocodificados: geocoder.llamadasHechas }

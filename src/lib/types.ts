@@ -15,6 +15,7 @@ export interface Caso {
   inicio_afectacion: string | null
   fin_afectacion: string | null
   ciudad: string
+  direccion: string | null
   departamento: string | null
   lat: number | null
   lng: number | null
