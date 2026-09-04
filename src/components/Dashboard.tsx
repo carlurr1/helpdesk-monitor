@@ -55,7 +55,7 @@ export default function Dashboard() {
   }), [rows, cats, estado])
 
   const ubicados = useMemo(
-    () => rowsFiltradas.filter((r) => (r.lat != null && r.lng != null) || geoDeCaso(r.ciudad, r.direccion)).length,
+    () => rowsFiltradas.filter((r) => r.abierto && ((r.lat != null && r.lng != null) || geoDeCaso(r.ciudad, r.direccion))).length,
     [rowsFiltradas],
   )
   const op = useMemo(() => computeOperativo(rowsFiltradas, now), [rowsFiltradas, now])
