@@ -105,9 +105,9 @@ export const SF_CFG = {
   CITY_NAME_FIELD: process.env.SF_CITY_NAME_FIELD ?? deriveRelationshipName(process.env.SF_CITY_FIELD || 'Ciudad_Instalacion__c'),
   STATE_FIELD: process.env.SF_STATE_FIELD || '',
   // Campo de dirección del Caso. Se usa SOLO para geolocalizar (cruzar el texto
-  // con localidades/ciudades, como el script de GAS); no se guarda crudo. Vacío
-  // = no se pide. Ej: 'Direccion_Instalacion__c'.
-  ADDRESS_FIELD: process.env.SF_ADDRESS_FIELD || '',
+  // con localidades/ciudades, como el script de GAS); no se guarda crudo.
+  // Confirmado por diagnóstico: Direccion_Instalacion__c. Pon '' para desactivar.
+  ADDRESS_FIELD: process.env.SF_ADDRESS_FIELD ?? 'Direccion_Instalacion__c',
   WINDOW_DAYS: parseInt(process.env.SF_WINDOW_DAYS || '60', 10),
 }
 
