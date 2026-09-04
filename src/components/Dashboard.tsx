@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { SegmentSelector } from './SegmentSelector'
 import { KpiTile } from './dash/KpiTile'
@@ -8,10 +8,9 @@ import { TendenciaChart, TmsChart, AgingChart } from './dash/Charts'
 import { CasosTablaSemaforo } from './dash/CasosTablaSemaforo'
 import { Filtros } from './dash/Filtros'
 import { ExportExcel } from './dash/ExportExcel'
-import { computeOperativo, computeEjecutivo, categoriaDe, type Categoria } from '@/lib/metrics'
-import { geoDeCaso } from '@/lib/geo'
+import type { Categoria } from '@/lib/metrics'
 import { ETB } from '@/lib/colors'
-import type { ApiCasos, Caso } from '@/lib/types'
+import type { ApiCasos } from '@/lib/types'
 
 const MapaCasos = dynamic(() => import('./MapaCasos'), {
   ssr: false,
@@ -31,35 +30,27 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
 
-  const cargar = useCallback((seg: string, silencioso = false) => {
+  const cargar = useCallback((seg: string, cs: Categoria[], est: string, silencioso = false) => {
     if (!silencioso) setLoading(true)
     setError(null)
-    return fetch(`/api/casos?segmento=${encodeURIComponent(seg)}`)
+    const qs = new URLSearchParams({ segmento: seg })
+    if (cs.length) qs.set('cats', cs.join(','))
+    if (est) qs.set('estado', est)
+    return fetch(`/api/casos?${qs.toString()}`)
       .then((r) => r.json())
       .then((j: ApiCasos) => { if (j.ok) { setData(j); setUpdated(new Date()) } else setError(j.error || 'Error desconocido') })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { cargar(segmento) }, [segmento, cargar])
-  useEffect(() => { const id = setInterval(() => cargar(segmento, true), REFRESH_MS); return () => clearInterval(id) }, [segmento, cargar])
+  useEffect(() => { cargar(segmento, cats, estado) }, [segmento, cats, estado, cargar])
+  useEffect(() => {
+    const id = setInterval(() => cargar(segmento, cats, estado, true), REFRESH_MS)
+    return () => clearInterval(id)
+  }, [segmento, cats, estado, cargar])
 
-  const now = useMemo(() => new Date(), [updated])
-  const rows: Caso[] = data?.rows ?? []
-  const estadosOpts = useMemo(() => [...new Set(rows.map((r) => r.estado).filter(Boolean) as string[])].sort(), [rows])
-
-  const rowsFiltradas = useMemo(() => rows.filter((r) => {
-    if (cats.length && !cats.includes(categoriaDe(r))) return false
-    if (estado && r.estado !== estado) return false
-    return true
-  }), [rows, cats, estado])
-
-  const ubicados = useMemo(
-    () => rowsFiltradas.filter((r) => r.abierto && ((r.lat != null && r.lng != null) || geoDeCaso(r.ciudad, r.direccion))).length,
-    [rowsFiltradas],
-  )
-  const op = useMemo(() => computeOperativo(rowsFiltradas, now), [rowsFiltradas, now])
-  const ej = useMemo(() => computeEjecutivo(rowsFiltradas, now), [rowsFiltradas, now])
+  const op = data?.op
+  const ej = data?.ej
 
   const toggleCat = (c: Categoria) => setCats((p) => p.includes(c) ? p.filter((x) => x !== c) : [...p, c])
   const reset = () => { setCats([]); setEstado('') }
@@ -73,8 +64,8 @@ export default function Dashboard() {
           <p className="text-xs text-slate-400">{updated ? `Actualizado ${updated.toLocaleTimeString('es-CO')}` : 'Cargando…'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportExcel rows={rowsFiltradas} now={now} segmento={segmento} />
-          <button onClick={() => cargar(segmento)} title="Actualizar ahora"
+          <ExportExcel segmento={segmento} cats={cats} estado={estado} />
+          <button onClick={() => cargar(segmento, cats, estado)} title="Actualizar ahora"
             className="rounded-full bg-gradient-to-br from-brand to-sky-500 px-4 py-2 text-xs font-extrabold text-white shadow-sm">Refrescar</button>
         </div>
       </div>
@@ -93,12 +84,12 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <SegmentSelector value={segmento} onChange={setSegmento} counts={data?.porSegmento} />
       </div>
-      <Filtros cats={cats} onToggleCat={toggleCat} estados={estadosOpts} estado={estado} onEstado={setEstado} onReset={reset} />
+      <Filtros cats={cats} onToggleCat={toggleCat} estados={data?.estados ?? []} estado={estado} onEstado={setEstado} onReset={reset} />
 
       {error && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No se pudieron cargar los casos: {error}.</div>}
       {loading && !data && <p className="text-sm text-slate-400">Cargando…</p>}
 
-      {data && tab === 'operacion' && (
+      {data && op && tab === 'operacion' && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <KpiTile label="Casos abiertos" value={op.kpis.abiertos} accent={ETB.blue} meta="Total abiertos" />
@@ -112,7 +103,7 @@ export default function Dashboard() {
             <KpiTile label="Prom. cierres/día" value={op.kpis.cierresDiaProm} accent={ETB.teal} />
             <KpiTile label="Ingresos hoy" value={op.kpis.ingresosHoy} accent={ETB.yellow} />
             <KpiTile label="Cierres hoy" value={op.kpis.cierresHoy} accent={ETB.green} />
-            <KpiTile label="Ubicados en mapa" value={ubicados} accent={ETB.blue} meta="Con ubicación" />
+            <KpiTile label="Ubicados en mapa" value={data.kpis.ubicados} accent={ETB.blue} meta="Abiertos con ubicación" />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
@@ -134,15 +125,15 @@ export default function Dashboard() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <MapaCasos rows={rowsFiltradas} segmento={segmento} />
+            <MapaCasos puntos={data.puntos ?? []} segmento={segmento} esBogota={data.esBogota} />
             <AgingChart aging={op.aging} />
           </div>
 
-          <CasosTablaSemaforo rows={rowsFiltradas} now={now} />
+          <CasosTablaSemaforo abiertos={data.abiertos ?? []} total={data.abiertosTotal ?? 0} />
         </>
       )}
 
-      {data && tab === 'ejecutivo' && (
+      {data && ej && tab === 'ejecutivo' && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <KpiTile label="Casos abiertos" value={ej.kpis.pendientes} accent={ETB.blue} />
@@ -185,7 +176,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <MapaCasos rows={rowsFiltradas} segmento={segmento} />
+            <MapaCasos puntos={data.puntos ?? []} segmento={segmento} esBogota={data.esBogota} />
             <AgingChart aging={ej.aging} />
           </div>
         </>

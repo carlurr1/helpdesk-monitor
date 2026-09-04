@@ -1,53 +1,46 @@
 'use client'
+import { useState } from 'react'
 import * as XLSX from 'xlsx'
-import type { Caso } from '@/lib/types'
-import { categoriaDe, edadDias, semaforo, SEMAFORO_LABEL, computeOperativo } from '@/lib/metrics'
-import { ciudadLegible } from '@/lib/format'
+import { SEMAFORO_LABEL, type Categoria } from '@/lib/metrics'
+import type { FilaTabla } from '@/lib/types'
 
-export function ExportExcel({ rows, now, segmento }: { rows: Caso[]; now: Date; segmento: string }) {
-  function exportar() {
-    const wb = XLSX.utils.book_new()
-    const op = computeOperativo(rows, now)
-    const k = op.kpis
-    const kpis = [
-      ['Métrica', 'Valor'],
-      ['Segmento', segmento],
-      ['Casos abiertos', k.abiertos],
-      ['Ingresos mes', k.ingresosMes],
-      ['Cierres mes', k.cierresMes],
-      ['Antigüedad promedio (días)', k.antiguedadProm],
-      ['% Críticos', k.pctCriticos + '%'],
-      ['% Atención', k.pctAtencion + '%'],
-      ['Clientes abiertos', k.clientesAbiertos],
-      ['Ingresos hoy', k.ingresosHoy],
-      ['Cierres hoy', k.cierresHoy],
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kpis), 'KPIs')
+// Descarga los abiertos (calculados en el servidor) y arma el Excel al vuelo.
+export function ExportExcel({ segmento, cats, estado }: { segmento: string; cats: Categoria[]; estado: string }) {
+  const [busy, setBusy] = useState(false)
 
-    const tend = [['Fecha', 'Ingresos', 'Cierres']]
-    op.tendencia.forEach((t) => tend.push([t.dia, String(t.ingresos), String(t.cierres)]))
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tend), 'Tendencia')
+  async function exportar() {
+    setBusy(true)
+    try {
+      const qs = new URLSearchParams({ segmento, export: '1' })
+      if (cats.length) qs.set('cats', cats.join(','))
+      if (estado) qs.set('estado', estado)
+      const res = await fetch(`/api/casos?${qs.toString()}`)
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      const abiertos: FilaTabla[] = j.abiertos ?? []
 
-    const casos = [['Caso', 'Cliente', 'Estado', 'Categoría', 'Tipología', 'Ciudad', 'Dirección', 'Apertura', 'Antigüedad (d)', 'Semáforo']]
-    rows.filter((r) => r.abierto).forEach((r) => {
-      const edad = edadDias(r, now)
-      casos.push([
-        r.numero, r.cuenta_nombre || r.cliente_base || r.nit || '', r.estado || '', categoriaDe(r),
-        r.tipologia || '', ciudadLegible(r.ciudad, ''), r.direccion || '', r.fecha_apertura ? new Date(r.fecha_apertura).toLocaleString('es-CO') : '',
-        String(edad), SEMAFORO_LABEL[semaforo(edad)],
+      const wb = XLSX.utils.book_new()
+      const head = [['Caso', 'Cliente', 'Estado', 'Categoría', 'Tipología', 'Ciudad', 'Dirección', 'Apertura', 'Antigüedad (d)', 'Semáforo']]
+      const filas = abiertos.map((r) => [
+        r.numero, r.cliente, r.estado, r.categoria, r.tipologia, r.ciudad, r.direccion,
+        r.fecha_apertura ? new Date(r.fecha_apertura).toLocaleString('es-CO') : '',
+        String(r.edad), SEMAFORO_LABEL[r.sem],
       ])
-    })
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(casos), 'Casos abiertos')
-
-    const fecha = now.toISOString().slice(0, 10)
-    XLSX.writeFile(wb, `Monitor_${segmento}_${fecha}.xlsx`)
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([...head, ...filas]), 'Casos abiertos')
+      const fecha = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `Monitor_${segmento}_${fecha}.xlsx`)
+    } catch (e) {
+      alert('No se pudo exportar: ' + (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <button onClick={exportar}
-      className="flex items-center gap-1.5 rounded-full border border-teal-500 bg-white px-3 py-1.5 text-xs font-extrabold text-teal-600 hover:bg-teal-50">
+    <button onClick={exportar} disabled={busy}
+      className="flex items-center gap-1.5 rounded-full border border-teal-500 bg-white px-3 py-1.5 text-xs font-extrabold text-teal-600 hover:bg-teal-50 disabled:opacity-50">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-      Excel
+      {busy ? 'Generando…' : 'Excel'}
     </button>
   )
 }
