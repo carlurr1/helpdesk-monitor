@@ -17,8 +17,8 @@ async function run(req: Request) {
     return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 })
   }
   try {
-    const { count } = await syncCasos()
-    return NextResponse.json({ ok: true, count, at: new Date().toISOString() })
+    const { count, geocodificados } = await syncCasos()
+    return NextResponse.json({ ok: true, count, geocodificados, at: new Date().toISOString() })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
   }

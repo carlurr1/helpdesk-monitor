@@ -7,9 +7,9 @@
 import { syncCasos } from '../src/lib/sync'
 
 async function main() {
-  const { count, soql } = await syncCasos()
+  const { count, soql, geocodificados } = await syncCasos()
   console.log('SOQL:', soql.replace(/\s+/g, ' ').trim())
-  console.log(`Sync completo: ${count} casos.`)
+  console.log(`Sync completo: ${count} casos · ${geocodificados} direcciones geocodificadas (nuevas).`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

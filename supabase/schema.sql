@@ -50,6 +50,18 @@ create index if not exists idx_casos_abierto on casos(abierto);
 create index if not exists idx_casos_apertura on casos(fecha_apertura);
 create index if not exists idx_casos_cierre on casos(fecha_cierre);
 
+-- ── Caché de geocodificación (dirección → lat/lng) ────────
+-- Evita volver a llamar al geocodificador (Nominatim/OSM) por la misma
+-- dirección en cada sync. Se llena solo; respeta el límite de 1 req/s.
+create table if not exists geocache (
+  direccion       text primary key,     -- dirección normalizada (MAYÚSCULAS, sin dobles espacios)
+  lat             double precision,
+  lng             double precision,
+  ciudad          text,                 -- localidad/ciudad legible que devolvió el geocodificador
+  fuente          text,                 -- 'nominatim' | 'texto' | 'bogota-centro'
+  actualizado_en  timestamptz default now()
+);
+
 -- ── Vista: casos enriquecidos con el segmento del cliente ──
 -- Aquí ocurre el cruce por NIT. El front consulta esta vista, no Salesforce.
 -- Un caso cuyo NIT no está en la base queda 'Sin clasificar' (sigue contando).
