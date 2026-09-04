@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root { --brand:#0b5aa5; --coral:#ea6b5d; --yellow:#f79009; --teal:#12b7b0; --green:#12b76a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#eef2f7; color:#1f2a37; }
+    .wrap { max-width:1200px; margin:0 auto; padding:16px; }
+    .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+    .top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; }
+    h1 { font-size:18px; margin:0; font-weight:800; }
+    .sub { color:#94a3b8; font-size:12px; }
+    .row { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+    .chip { border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; border:1px solid #e2e8f0; background:#fff; color:#475569; cursor:pointer; }
+    .chip.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+    .grid { display:grid; gap:12px; margin-top:12px; }
+    .k6 { grid-template-columns:repeat(2,1fr); } @media(min-width:700px){ .k6{ grid-template-columns:repeat(3,1fr);} } @media(min-width:1000px){ .k6{ grid-template-columns:repeat(6,1fr);} }
+    .g2 { grid-template-columns:1fr; } @media(min-width:900px){ .g2{ grid-template-columns:1fr 1fr;} }
+    .kpi { padding:12px 14px; border-radius:12px; border:1px solid #eef2f7; background:#fff; border-left:4px solid var(--brand); }
+    .kpi .lbl { font-size:11px; color:#94a3b8; font-weight:700; text-transform:uppercase; }
+    .kpi .val { font-size:22px; font-weight:800; }
+    .kpi .meta { font-size:11px; color:#94a3b8; }
+    h3 { font-size:13px; text-transform:uppercase; letter-spacing:.03em; color:var(--brand); margin:0 0 8px; font-weight:800; }
+    .bar { display:flex; height:16px; border-radius:6px; overflow:hidden; background:#e5e9f0; }
+    .barrow { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; padding:8px 10px; border:1px solid #eef2f7; border-radius:10px; background:#f8fafc; margin-bottom:6px; }
+    .barrow .name { font-size:12px; font-weight:700; color:#334155; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th { text-align:left; font-size:11px; text-transform:uppercase; color:#94a3b8; padding:8px; }
+    td { padding:8px; border-top:1px solid #f1f5f9; }
+    .pill { border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; }
+    .critical{background:#fef2f2;color:#b91c1c;} .warning{background:#fffbeb;color:#b45309;} .healthy{background:#ecfdf5;color:#047857;}
+    #map { height:440px; border-radius:10px; }
+    .muted { color:#94a3b8; text-align:center; padding:20px; }
+    .btn { border-radius:999px; padding:8px 16px; font-size:12px; font-weight:800; border:0; background:var(--brand); color:#fff; cursor:pointer; }
+    .legend { display:flex; gap:6px; align-items:center; font-size:10px; font-weight:700; color:#94a3b8; margin-top:6px; }
+    .legend .g { flex:1; height:8px; border-radius:999px; background:linear-gradient(90deg,#1f7ad1,#12b7b0,#f79009,#ea6b5d,#b42318); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card top">
+    <div><h1>Monitor Help Desk · ETB</h1><div class="sub" id="upd">Cargando…</div></div>
+    <button class="btn" onclick="cargar()">Refrescar</button>
+  </div>
+
+  <div class="row" id="segs"></div>
+
+  <div id="content"><p class="muted">Cargando datos de Salesforce…</p></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+  var SEGMENTOS = ['Todos','Distrito','Élite','Premium','Mayoristas','Silver','Gold'];
+  var CAT_COLOR = { Incidente:'#ea6b5d', Evento:'#f79009', Requerimiento:'#0b5aa5', Otros:'#b0c0d0' };
+  var segActual = 'Todos', mapa, capaCalor, data;
+
+  function fmt(n){ return (n==null?0:n).toLocaleString('es-CO'); }
+
+  function pintarSegs(porSeg){
+    var h = SEGMENTOS.map(function(s){
+      var c = s==='Todos' ? '' : ' ('+fmt(porSeg?porSeg[s]:0)+')';
+      return '<div class="chip'+(s===segActual?' on':'')+'" onclick="segActual=\''+s+'\';cargar()">'+s+c+'</div>';
+    }).join('');
+    document.getElementById('segs').innerHTML = h;
+  }
+
+  function kpi(lbl,val,color,meta){ return '<div class="kpi" style="border-left-color:'+(color||'#0b5aa5')+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div>'+(meta?'<div class="meta">'+meta+'</div>':'')+'</div>'; }
+
+  function tricolor(titulo, items, rank){
+    var body = (items&&items.length) ? items.map(function(it,i){
+      var t = it.total||1;
+      var segs = [['Incidente',CAT_COLOR.Incidente],['Evento',CAT_COLOR.Evento],['Requerimiento',CAT_COLOR.Requerimiento],['Otros',CAT_COLOR.Otros]]
+        .filter(function(s){return it[s[0]]>0;})
+        .map(function(s){return '<div style="width:'+(it[s[0]]/t*100)+'%;background:'+s[1]+'"></div>';}).join('');
+      return '<div class="barrow"><div><div class="name">'+(rank?(i+1)+'. ':'')+it.label+'</div><div class="bar">'+segs+'</div></div><div style="font-weight:800;color:#0b5aa5">'+fmt(it.total)+'</div></div>';
+    }).join('') : '<p class="muted">Sin datos</p>';
+    return '<div class="card" style="padding:14px"><h3>'+titulo+'</h3>'+body+'</div>';
+  }
+
+  function tablaHtml(tabla, total){
+    var rows = tabla.map(function(r){
+      var f = r.apertura ? new Date(r.apertura).toLocaleDateString('es-CO') : '—';
+      return '<tr><td><span class="pill '+r.sem+'">'+({critical:'Crítico',warning:'Atención',healthy:'Al día'}[r.sem])+'</span></td>'+
+        '<td>'+r.numero+'</td><td>'+r.cliente+'</td><td>'+(r.estado||'—')+'</td><td>'+r.categoria+'</td>'+
+        '<td>'+(r.tipologia||'—')+'</td><td>'+(r.ciudad||'—')+'</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.direccion||'')+'">'+(r.direccion||'—')+'</td><td>'+f+'</td><td>'+fmt(r.edad)+' d</td></tr>';
+    }).join('');
+    return '<div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px"><h3>Casos abiertos</h3><div class="sub">'+fmt(total)+' abiertos'+(total>tabla.length?' · mostrando '+tabla.length:'')+'</div></div>'+
+      '<table><thead><tr><th>Semáforo</th><th>Caso</th><th>Cliente</th><th>Estado</th><th>Categoría</th><th>Tipología</th><th>Ciudad</th><th>Dirección</th><th>Apertura</th><th>Antigüedad</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+
+  function render(d){
+    data = d;
+    pintarSegs(d.porSegmento);
+    document.getElementById('upd').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-CO') + ' · ' + fmt(d.kpis.total) + ' casos';
+    var k = d.kpis;
+    var kpis = '<div class="grid k6">'+
+      kpi('Casos abiertos', fmt(k.abiertos), '#0b5aa5','Total abiertos')+
+      kpi('Ingresos mes', fmt(k.ingresosMes), '#f79009','Hoy: '+fmt(k.ingresosHoy))+
+      kpi('Cierres mes', fmt(k.cierresMes), '#12b7b0','Hoy: '+fmt(k.cierresHoy))+
+      kpi('Antigüedad prom.', k.antiguedadProm+' d', '#ea6b5d','Promedio abiertos')+
+      kpi('Críticos', k.pctCriticos+'%', '#ea6b5d','≥ 8 días')+
+      kpi('Ubicados', fmt(k.ubicados), '#0b5aa5','En el mapa')+
+    '</div>';
+    var mapCard = '<div class="card" style="padding:12px"><h3>'+(d.esBogota?'Mapa de calor · Bogotá':'Mapa de calor · Colombia')+'</h3><div id="map"></div><div class="legend"><span>Menos</span><span class="g"></span><span>Más</span></div></div>';
+    var bars = '<div class="grid g2">'+tricolor('Top clientes abiertos', d.topClientes, true)+tricolor('Top clientes críticos', d.topCriticos, true)+'</div>';
+    var estados = tricolor('Estados', d.estados, false);
+
+    document.getElementById('content').innerHTML = kpis +
+      '<div class="grid g2">'+mapCard+estados+'</div>' + bars + '<div class="grid" style="margin-top:12px">'+tablaHtml(d.tabla, d.abiertosTotal)+'</div>';
+
+    dibujarMapa(d);
+  }
+
+  function dibujarMapa(d){
+    var center = d.esBogota ? [4.65,-74.09] : [4.6,-74.3];
+    var zoom = d.esBogota ? 11 : 6;
+    if (mapa) { mapa.remove(); mapa = null; }
+    mapa = L.map('map', { scrollWheelZoom:false }).setView(center, zoom);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap' }).addTo(mapa);
+    var pts = (d.puntos||[]).map(function(p){ return [p.lat, p.lng, p.count]; });
+    var maxC = Math.max.apply(null, [1].concat((d.puntos||[]).map(function(p){return p.count;})));
+    if (pts.length) L.heatLayer(pts, { radius: d.esBogota?32:24, blur:20, max:maxC, minOpacity:0.35,
+      gradient:{0.2:'#1f7ad1',0.4:'#12b7b0',0.6:'#f79009',0.8:'#ea6b5d',1.0:'#b42318'} }).addTo(mapa);
+    setTimeout(function(){ mapa.invalidateSize(); }, 200);
+  }
+
+  function cargar(){
+    document.getElementById('content').innerHTML = '<p class="muted">Cargando…</p>';
+    google.script.run
+      .withSuccessHandler(render)
+      .withFailureHandler(function(e){ document.getElementById('content').innerHTML = '<div class="card" style="padding:20px;color:#b91c1c">Error: '+e.message+'</div>'; })
+      .getData(segActual);
+  }
+
+  pintarSegs(null);
+  cargar();
+</script>
+</body>
+</html>
