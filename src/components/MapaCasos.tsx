@@ -1,47 +1,92 @@
 'use client'
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { useEffect, useMemo, useState } from 'react'
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.heat'
 import type { Caso } from '@/lib/types'
 import { SEG_COLOR } from '@/lib/colors'
 import { ciudadLegible } from '@/lib/format'
 
 interface Punto { lat: number; lng: number; ciudad: string; seg: string; count: number }
+type Vista = 'calor' | 'puntos'
 
 // Segmentos distritales (operación 100 % en Bogotá): el mapa se centra en la
 // ciudad. El resto de segmentos (y "Todos") usan la vista nacional de Colombia.
 const SEGMENTOS_BOGOTA = ['Distrito', 'Élite']
 
+// Gradiente del mapa de calor (frío → caliente), en la paleta ETB.
+const HEAT_GRADIENT: Record<number, string> = {
+  0.2: '#1f7ad1', 0.4: '#12b7b0', 0.6: '#f79009', 0.8: '#ea6b5d', 1.0: '#b42318',
+}
+
+// Capa de calor: leaflet.heat vive fuera de react-leaflet, así que la montamos
+// sobre el mapa con useMap() y la limpiamos al desmontar o cambiar de datos.
+function HeatLayer({ points, max, radius }: { points: [number, number, number][]; max: number; radius: number }) {
+  const map = useMap()
+  useEffect(() => {
+    const layer = (L as any).heatLayer(points, {
+      radius, blur: radius * 0.75, max, minOpacity: 0.35, maxZoom: 17, gradient: HEAT_GRADIENT,
+    })
+    layer.addTo(map)
+    return () => { map.removeLayer(layer) }
+  }, [map, points, max, radius])
+  return null
+}
+
 // Mapa adaptativo: Bogotá para Distrito y Élite, nacional para el resto.
 // Agrupa los casos por coordenada para no pintar miles de marcadores.
 export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: string }) {
-  const grupos = new Map<string, Punto>()
-  for (const r of rows) {
-    if (r.lat == null || r.lng == null) continue
-    const key = `${r.lat.toFixed(4)},${r.lng.toFixed(4)}`
-    const g = grupos.get(key)
-    if (g) g.count++
-    else grupos.set(key, { lat: r.lat, lng: r.lng, ciudad: ciudadLegible(r.ciudad, 'Sin ciudad'), seg: r.segmento, count: 1 })
-  }
-  const puntos = [...grupos.values()]
-  const totalGeo = puntos.reduce((a, p) => a + p.count, 0)
   const esBogota = SEGMENTOS_BOGOTA.includes(segmento)
+  const [vista, setVista] = useState<Vista>('calor')
+
+  const puntos = useMemo(() => {
+    const grupos = new Map<string, Punto>()
+    for (const r of rows) {
+      if (r.lat == null || r.lng == null) continue
+      const key = `${r.lat.toFixed(4)},${r.lng.toFixed(4)}`
+      const g = grupos.get(key)
+      if (g) g.count++
+      else grupos.set(key, { lat: r.lat, lng: r.lng, ciudad: ciudadLegible(r.ciudad, 'Sin ciudad'), seg: r.segmento, count: 1 })
+    }
+    return [...grupos.values()]
+  }, [rows])
+
+  const totalGeo = puntos.reduce((a, p) => a + p.count, 0)
+  const maxC = Math.max(1, ...puntos.map((p) => p.count))
   const center: [number, number] = esBogota ? [4.65, -74.09] : [4.6, -74.3]
   const zoom = esBogota ? 11 : 6
-  const maxC = Math.max(1, ...puntos.map((p) => p.count))
+  const heatPts = useMemo<[number, number, number][]>(() => puntos.map((p) => [p.lat, p.lng, p.count]), [puntos])
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          {esBogota ? 'Mapa · Bogotá' : 'Mapa · Colombia'}
+          {esBogota ? 'Mapa de calor · Bogotá' : 'Mapa de calor · Colombia'}
         </h3>
-        <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} casos ubicados</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} casos ubicados</span>
+          <div className="flex overflow-hidden rounded-full border border-slate-200 text-[11px] font-bold">
+            {(['calor', 'puntos'] as Vista[]).map((v) => (
+              <button key={v} onClick={() => setVista(v)}
+                className={'px-3 py-1 ' + (vista === v ? 'bg-brand text-white' : 'bg-white text-slate-500 hover:bg-slate-50')}>
+                {v === 'calor' ? 'Calor' : 'Puntos'}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       {/* key = alcance del mapa: react-leaflet solo aplica center/zoom al montar,
           así que forzamos el remonte cuando se cambia entre Bogotá y Colombia. */}
       <MapContainer key={esBogota ? 'bogota' : 'colombia'} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>
-        <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {puntos.map((p, i) => (
+        <TileLayer
+          attribution='&copy; <a href="https://carto.com/">CARTO</a> · &copy; OpenStreetMap'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        />
+        {vista === 'calor' && puntos.length > 0 && (
+          <HeatLayer points={heatPts} max={maxC} radius={esBogota ? 32 : 24} />
+        )}
+        {vista === 'puntos' && puntos.map((p, i) => (
           <CircleMarker
             key={i}
             center={[p.lat, p.lng]}
@@ -54,9 +99,16 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
           </CircleMarker>
         ))}
       </MapContainer>
+      {vista === 'calor' && puntos.length > 0 && (
+        <div className="mt-2 flex items-center gap-2 px-1 text-[10px] font-bold text-slate-400">
+          <span>Menos</span>
+          <span className="h-2 flex-1 rounded-full" style={{ background: 'linear-gradient(90deg,#1f7ad1,#12b7b0,#f79009,#ea6b5d,#b42318)' }} />
+          <span>Más casos</span>
+        </div>
+      )}
       {!puntos.length && (
         <p className="mt-2 text-center text-sm text-slate-400">
-          Sin casos ubicados (las ciudades del caso no coincidieron con el catálogo de geo).
+          Sin casos ubicados. Si la ciudad sale como un Id, sincroniza de nuevo desde <a className="text-brand underline" href="/admin">/admin</a> para traer ciudad y dirección.
         </p>
       )}
     </div>
