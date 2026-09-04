@@ -12,13 +12,57 @@ export interface Geo {
 }
 
 function norm(s: unknown): string {
-  return String(s ?? '')
-    .trim().toUpperCase()
+  const t = String(s ?? '')
+    .toUpperCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '') // quita tildes (marcas combinantes)
-    .replace(/\bBOGOTA D\.?C\.?\b/, 'BOGOTA')
-    .replace(/[^A-Z0-9 ]/g, '')
+    .replace(/[^A-Z0-9 ]/g, ' ') // puntuación → espacio (no pega palabras: "ARANDA-COMCEL" → "ARANDA COMCEL")
     .replace(/\s+/g, ' ')
     .trim()
+  // "BOGOTA, D.C." / "BOGOTA D C" / "BOGOTA DC" → "BOGOTA"
+  return t.replace(/\bBOGOTA D C\b/g, 'BOGOTA').replace(/\bBOGOTA DC\b/g, 'BOGOTA')
+}
+
+/**
+ * Extrae coordenadas embebidas en un texto (algunas direcciones traen la
+ * geolocalización dentro): decimales "3.876978, -73.764934" o grados/minutos/
+ * segundos "4°10'16\"N 74°10'17\"". Devuelve null si no hay o si caen fuera de
+ * Colombia. En Colombia la longitud siempre es Oeste (negativa).
+ */
+export function extraerCoordenadas(texto: unknown): { lat: number; lng: number } | null {
+  const s = String(texto ?? '')
+  // 1) Decimales
+  const dec = s.match(/(-?\d{1,2}\.\d{3,})\s*[, ]\s*(-?\d{1,3}\.\d{3,})/)
+  if (dec) {
+    const g = validarCoord(parseFloat(dec[1]), parseFloat(dec[2]))
+    if (g) return g
+  }
+  // 2) Grados/minutos/segundos
+  const dms = [...s.matchAll(/(\d{1,3})\s*[°º]\s*(\d{1,2})\s*['′]\s*(\d{1,2}(?:\.\d+)?)?\s*["″]?\s*([NSEWO])?/gi)]
+  if (dms.length >= 2) {
+    const a = dmsAdecimal(dms[0]), b = dmsAdecimal(dms[1])
+    if (a && b) {
+      const lat = a.dir === 'S' ? -a.val : a.val
+      const lng = -Math.abs(b.val) // Colombia: siempre Oeste
+      const g = validarCoord(lat, lng)
+      if (g) return g
+    }
+  }
+  return null
+}
+
+function dmsAdecimal(m: RegExpMatchArray): { val: number; dir: string } | null {
+  const deg = parseFloat(m[1]); if (!Number.isFinite(deg)) return null
+  const min = parseFloat(m[2] || '0') || 0
+  const sec = parseFloat(m[3] || '0') || 0
+  return { val: deg + min / 60 + sec / 3600, dir: (m[4] || '').toUpperCase() }
+}
+
+function validarCoord(lat: number, lng: number): { lat: number; lng: number } | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  const dentro = (la: number, ln: number) => la >= -5 && la <= 15 && ln >= -82 && ln <= -66
+  if (dentro(lat, lng)) return { lat, lng }
+  if (dentro(lng, lat)) return { lat: lng, lng: lat } // venían invertidas
+  return null
 }
 
 type LatLng = [number, number]
