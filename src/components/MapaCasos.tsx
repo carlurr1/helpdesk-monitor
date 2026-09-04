@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Caso } from '@/lib/types'
 import { SEG_COLOR } from '@/lib/colors'
+import { ciudadLegible } from '@/lib/format'
 
 interface Punto { lat: number; lng: number; ciudad: string; seg: string; count: number }
 
@@ -19,7 +20,7 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
     const key = `${r.lat.toFixed(4)},${r.lng.toFixed(4)}`
     const g = grupos.get(key)
     if (g) g.count++
-    else grupos.set(key, { lat: r.lat, lng: r.lng, ciudad: r.ciudad || 'Sin ciudad', seg: r.segmento, count: 1 })
+    else grupos.set(key, { lat: r.lat, lng: r.lng, ciudad: ciudadLegible(r.ciudad, 'Sin ciudad'), seg: r.segmento, count: 1 })
   }
   const puntos = [...grupos.values()]
   const totalGeo = puntos.reduce((a, p) => a + p.count, 0)

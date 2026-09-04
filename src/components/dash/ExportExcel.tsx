@@ -2,6 +2,7 @@
 import * as XLSX from 'xlsx'
 import type { Caso } from '@/lib/types'
 import { categoriaDe, edadDias, semaforo, SEMAFORO_LABEL, computeOperativo } from '@/lib/metrics'
+import { ciudadLegible } from '@/lib/format'
 
 export function ExportExcel({ rows, now, segmento }: { rows: Caso[]; now: Date; segmento: string }) {
   function exportar() {
@@ -32,7 +33,7 @@ export function ExportExcel({ rows, now, segmento }: { rows: Caso[]; now: Date; 
       const edad = edadDias(r, now)
       casos.push([
         r.numero, r.cuenta_nombre || r.cliente_base || r.nit || '', r.estado || '', categoriaDe(r),
-        r.tipologia || '', r.ciudad || '', r.fecha_apertura ? new Date(r.fecha_apertura).toLocaleString('es-CO') : '',
+        r.tipologia || '', ciudadLegible(r.ciudad, ''), r.fecha_apertura ? new Date(r.fecha_apertura).toLocaleString('es-CO') : '',
         String(edad), SEMAFORO_LABEL[semaforo(edad)],
       ])
     })

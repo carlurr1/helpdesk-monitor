@@ -1,7 +1,7 @@
 // Lógica de sync SF → Supabase.casos, reutilizable por el script y el endpoint.
-import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG, cityNameFromRecord } from './salesforce'
+import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG, cityNameFromRecord, addressFromRecord } from './salesforce'
 import { normalizarNit } from './segmentos'
-import { resolverGeo } from './geo'
+import { resolverGeo, geolocalizarTexto } from './geo'
 import { supabaseServer } from './supabase'
 
 export interface SyncResult { count: number; soql: string }
@@ -16,9 +16,20 @@ export async function syncCasos(): Promise<SyncResult> {
 
   const casos = records.map((c: any) => {
     // Nombre legible de la ciudad (resuelve el lookup; nunca guarda el Id crudo).
-    const ciudad = cityNameFromRecord(c)
-    // La ciudad puede ser en realidad una localidad de Bogotá; resolverGeo lo maneja.
-    const geo = resolverGeo({ ciudad, localidad: ciudad })
+    const ciudadSF = cityNameFromRecord(c)
+    // Dirección: solo para geolocalizar cruzando el texto (como el script de GAS).
+    const direccion = addressFromRecord(c)
+
+    // 1º intento: la ciudad como tal (o localidad de Bogotá) por diccionario exacto.
+    let geo = resolverGeo({ ciudad: ciudadSF, localidad: ciudadSF })
+    // Nombre a guardar: el de SF si es legible; si no, se completa abajo.
+    let ciudad = ciudadSF
+    // 2º intento: escanear el texto libre (ciudad + dirección) buscando una
+    // localidad de Bogotá o una ciudad conocida dentro de la cadena.
+    if (!geo) {
+      const t = geolocalizarTexto(ciudadSF, direccion)
+      if (t) { geo = t.geo; if (!ciudad) ciudad = t.nombre }
+    }
     return {
       id:                c.Id,
       numero:            c.CaseNumber ?? '',

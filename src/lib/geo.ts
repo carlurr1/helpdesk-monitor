@@ -67,6 +67,40 @@ function coord([lat, lng]: LatLng, fuente: Geo['fuente']): Geo {
   return { lat, lng, fuente }
 }
 
+// Tokens ordenados de más largo a más corto para que "CIUDAD BOLIVAR" gane
+// sobre "BOLIVAR" y "SANTA FE" sobre coincidencias parciales.
+const LOC_TOKENS = Object.keys(LOCALIDADES_BOGOTA).sort((a, b) => b.length - a.length)
+const CITY_TOKENS = Object.keys(CIUDADES).sort((a, b) => b.length - a.length)
+
+function contienePalabra(texto: string, token: string): boolean {
+  return (' ' + texto + ' ').includes(' ' + token + ' ')
+}
+
+export interface GeoTexto { geo: Geo; nombre: string }
+
+/**
+ * Geolocaliza a partir de texto libre (dirección, "ciudad" con basura, etc.),
+ * igual que hace el script de GAS: busca dentro del texto el nombre de una
+ * localidad de Bogotá o de una ciudad conocida. Devuelve las coordenadas y el
+ * nombre legible encontrado (para no guardar direcciones crudas ni Ids).
+ * Prioriza localidad (Bogotá) sobre ciudad.
+ */
+export function geolocalizarTexto(...partes: (string | null | undefined)[]): GeoTexto | null {
+  const texto = norm(partes.filter(Boolean).join(' '))
+  if (!texto) return null
+  for (const t of LOC_TOKENS) {
+    if (contienePalabra(texto, t)) return { geo: coord(LOCALIDADES_BOGOTA[t], 'localidad'), nombre: capitalizar(t) }
+  }
+  for (const t of CITY_TOKENS) {
+    if (contienePalabra(texto, t)) return { geo: coord(CIUDADES[t], 'ciudad'), nombre: capitalizar(t) }
+  }
+  return null
+}
+
+function capitalizar(s: string): string {
+  return s.toLowerCase().replace(/(^|\s)\p{L}/gu, (m) => m.toUpperCase())
+}
+
 /**
  * Resuelve coordenadas a partir de ciudad (y opcionalmente departamento/localidad).
  * Devuelve null si no se pudo ubicar → el caso igual cuenta, solo no se pinta.

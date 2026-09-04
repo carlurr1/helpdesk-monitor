@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import type { Caso } from '@/lib/types'
 import { categoriaDe, edadDias, semaforo, SEMAFORO_LABEL, type Semaforo } from '@/lib/metrics'
+import { ciudadLegible } from '@/lib/format'
 
 const MAX = 250
 const PILLS: { k: 'all' | Semaforo; label: string }[] = [
@@ -57,7 +58,7 @@ export function CasosTablaSemaforo({ rows, now }: { rows: Caso[]; now: Date }) {
                 <td className="px-4 py-2 text-slate-600">{r.estado || '—'}</td>
                 <td className="px-4 py-2 text-slate-600">{categoriaDe(r)}</td>
                 <td className="px-4 py-2 text-slate-500">{r.tipologia || '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{r.ciudad || '—'}</td>
+                <td className="px-4 py-2 text-slate-600">{ciudadLegible(r.ciudad)}</td>
                 <td className="px-4 py-2 text-slate-500">{fecha(r.fecha_apertura)}</td>
                 <td className="px-4 py-2 font-semibold text-slate-700">{edad.toLocaleString('es-CO')} d</td>
               </tr>
