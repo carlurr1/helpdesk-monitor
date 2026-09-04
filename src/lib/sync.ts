@@ -1,10 +1,10 @@
 // Lógica de sync SF → Supabase.casos, reutilizable por el script y el endpoint.
 import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG, cityNameFromRecord, addressFromRecord } from './salesforce'
 import { normalizarNit } from './segmentos'
-import { resolverGeo, geolocalizarTexto } from './geo'
+import { Geocoder } from './geocode'
 import { supabaseServer } from './supabase'
 
-export interface SyncResult { count: number; soql: string }
+export interface SyncResult { count: number; soql: string; geocodificados: number }
 
 /** Trae los casos de SF (solo SOPORTE TECNICO, sin Cancelado, por NIT) y los upserta en Supabase. */
 export async function syncCasos(): Promise<SyncResult> {
@@ -14,23 +14,23 @@ export async function syncCasos(): Promise<SyncResult> {
 
   const nitField  = SF_CFG.NIT_FIELD
 
-  const casos = records.map((c: any) => {
+  // Geocodificador con caché: catálogo/localidad (instantáneo) y, para lo que no
+  // matchee, Nominatim sobre la dirección (CRA/CLLE → localidad + lat/lng).
+  const geocoder = new Geocoder()
+  await geocoder.cargarCache()
+
+  const casos = []
+  for (const c of records as any[]) {
     // Nombre legible de la ciudad (resuelve el lookup; nunca guarda el Id crudo).
     const ciudadSF = cityNameFromRecord(c)
-    // Dirección: solo para geolocalizar cruzando el texto (como el script de GAS).
+    // Dirección: solo para geolocalizar (no se guarda cruda).
     const direccion = addressFromRecord(c)
 
-    // 1º intento: la ciudad como tal (o localidad de Bogotá) por diccionario exacto.
-    let geo = resolverGeo({ ciudad: ciudadSF, localidad: ciudadSF })
-    // Nombre a guardar: el de SF si es legible; si no, se completa abajo.
-    let ciudad = ciudadSF
-    // 2º intento: escanear el texto libre (ciudad + dirección) buscando una
-    // localidad de Bogotá o una ciudad conocida dentro de la cadena.
-    if (!geo) {
-      const t = geolocalizarTexto(ciudadSF, direccion)
-      if (t) { geo = t.geo; if (!ciudad) ciudad = t.nombre }
-    }
-    return {
+    const geo = await geocoder.resolver(ciudadSF, direccion)
+    // Ciudad a guardar: la de SF si es legible; si no, la que devolvió el geo.
+    const ciudad = ciudadSF || geo?.ciudad || ''
+
+    casos.push({
       id:                c.Id,
       numero:            c.CaseNumber ?? '',
       nit:               normalizarNit(c[nitField]),
@@ -49,8 +49,10 @@ export async function syncCasos(): Promise<SyncResult> {
       lat:               geo?.lat ?? null,
       lng:               geo?.lng ?? null,
       sincronizado_en:   new Date().toISOString(),
-    }
-  })
+    })
+  }
+
+  await geocoder.guardarCache()
 
   const sb = supabaseServer()
   for (let i = 0; i < casos.length; i += 500) {
@@ -58,5 +60,5 @@ export async function syncCasos(): Promise<SyncResult> {
     const { error } = await sb.from('casos').upsert(lote, { onConflict: 'id' })
     if (error) throw new Error(`Supabase upsert (lote ${i}): ${error.message}`)
   }
-  return { count: casos.length, soql }
+  return { count: casos.length, soql, geocodificados: geocoder.llamadasHechas }
 }

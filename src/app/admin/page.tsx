@@ -79,7 +79,8 @@ export default function Admin() {
       const res = await fetch('/api/sync', { method: 'POST', headers: { Authorization: `Bearer ${secret}` } })
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || 'Error')
-      push(`✅ ${Number(j.count).toLocaleString('es-CO')} casos sincronizados.`)
+      push(`✅ ${Number(j.count).toLocaleString('es-CO')} casos sincronizados${j.geocodificados ? ` · ${j.geocodificados} direcciones geocodificadas (nuevas)` : ''}.`)
+      if (j.geocodificados >= 45) push('ℹ️ Se alcanzó el tope de geocodificación por corrida; vuelve a sincronizar para completar el resto (usa la caché, es rápido).')
       cargarHealth()
     } catch (e: any) {
       push('❌ ' + (e?.message || e) + '  — si dice timeout/504, en plan Hobby el sync se corta a los 10s; ahí toca Vercel Pro.')
