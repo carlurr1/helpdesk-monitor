@@ -13,9 +13,12 @@ export interface GeoResuelto { lat: number; lng: number; ciudad: string; fuente:
 
 const UA = process.env.GEOCODER_UA || 'helpdesk-monitor/1.0 (soporte-monitor)'
 const BASE = 'https://nominatim.openstreetmap.org/search'
-// Llamadas NUEVAS a Nominatim por corrida (el resto sale de caché). Se limita
-// para no exceder maxDuration del endpoint (cada llamada espera ~1.1 s).
-const BUDGET = parseInt(process.env.GEOCODER_BUDGET || '45', 10)
+// Llamadas NUEVAS a Nominatim por corrida (el resto sale de caché). Cada llamada
+// espera ~1.1 s (límite de OSM), así que en planes con timeout corto (Vercel
+// Hobby = 10 s) el sync se cortaría. Por eso el DEFAULT es 0: el sync no llama a
+// la red y el navegador ubica con coordenadas/localidad/ciudad. Súbelo (p.ej. 45)
+// solo si tienes maxDuration alto (Vercel Pro) y quieres precisión por dirección.
+const BUDGET = parseInt(process.env.GEOCODER_BUDGET || '0', 10)
 const DELAY_MS = 1100
 const BOGOTA_CENTRO = { lat: 4.6533, lng: -74.0836 }
 

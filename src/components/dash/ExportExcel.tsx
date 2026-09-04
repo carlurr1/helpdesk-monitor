@@ -28,12 +28,12 @@ export function ExportExcel({ rows, now, segmento }: { rows: Caso[]; now: Date; 
     op.tendencia.forEach((t) => tend.push([t.dia, String(t.ingresos), String(t.cierres)]))
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tend), 'Tendencia')
 
-    const casos = [['Caso', 'Cliente', 'Estado', 'Categoría', 'Tipología', 'Ciudad', 'Apertura', 'Antigüedad (d)', 'Semáforo']]
+    const casos = [['Caso', 'Cliente', 'Estado', 'Categoría', 'Tipología', 'Ciudad', 'Dirección', 'Apertura', 'Antigüedad (d)', 'Semáforo']]
     rows.filter((r) => r.abierto).forEach((r) => {
       const edad = edadDias(r, now)
       casos.push([
         r.numero, r.cuenta_nombre || r.cliente_base || r.nit || '', r.estado || '', categoriaDe(r),
-        r.tipologia || '', ciudadLegible(r.ciudad, ''), r.fecha_apertura ? new Date(r.fecha_apertura).toLocaleString('es-CO') : '',
+        r.tipologia || '', ciudadLegible(r.ciudad, ''), r.direccion || '', r.fecha_apertura ? new Date(r.fecha_apertura).toLocaleString('es-CO') : '',
         String(edad), SEMAFORO_LABEL[semaforo(edad)],
       ])
     })
