@@ -80,8 +80,8 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
           así que forzamos el remonte cuando se cambia entre Bogotá y Colombia. */}
       <MapContainer key={esBogota ? 'bogota' : 'colombia'} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>
         <TileLayer
-          attribution='&copy; <a href="https://carto.com/">CARTO</a> · &copy; OpenStreetMap'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          attribution="&copy; OpenStreetMap"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {vista === 'calor' && puntos.length > 0 && (
           <HeatLayer points={heatPts} max={maxC} radius={esBogota ? 32 : 24} />
