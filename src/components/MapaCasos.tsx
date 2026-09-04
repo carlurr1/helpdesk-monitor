@@ -4,16 +4,12 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
-import type { Caso } from '@/lib/types'
 import { SEG_COLOR } from '@/lib/colors'
 import { ciudadLegible } from '@/lib/format'
-import { geoDeCaso } from '@/lib/geo'
+import type { PuntoMapa } from '@/lib/types'
 
-interface Punto { lat: number; lng: number; ciudad: string; seg: string; count: number }
 type Vista = 'calor' | 'puntos'
 
-// Segmentos distritales (operación 100 % en Bogotá): el mapa se centra en la
-// ciudad. El resto de segmentos (y "Todos") usan la vista nacional de Colombia.
 const SEGMENTOS_BOGOTA = ['Distrito', 'Élite']
 
 // Gradiente del mapa de calor (frío → caliente), en la paleta ETB.
@@ -21,8 +17,8 @@ const HEAT_GRADIENT: Record<number, string> = {
   0.2: '#1f7ad1', 0.4: '#12b7b0', 0.6: '#f79009', 0.8: '#ea6b5d', 1.0: '#b42318',
 }
 
-// Capa de calor: leaflet.heat vive fuera de react-leaflet, así que la montamos
-// sobre el mapa con useMap() y la limpiamos al desmontar o cambiar de datos.
+// Capa de calor: leaflet.heat vive fuera de react-leaflet; la montamos con
+// useMap() y la limpiamos al desmontar o cambiar de datos.
 function HeatLayer({ points, max, radius }: { points: [number, number, number][]; max: number; radius: number }) {
   const map = useMap()
   useEffect(() => {
@@ -35,31 +31,11 @@ function HeatLayer({ points, max, radius }: { points: [number, number, number][]
   return null
 }
 
-// Mapa adaptativo: Bogotá para Distrito y Élite, nacional para el resto.
-// Agrupa los casos por coordenada para no pintar miles de marcadores.
-export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: string }) {
-  const esBogota = SEGMENTOS_BOGOTA.includes(segmento)
+// Mapa de calor adaptativo: Bogotá para Distrito/Élite, nacional para el resto.
+// Recibe los puntos YA agregados por el servidor (open + ubicados).
+export default function MapaCasos({ puntos, segmento, esBogota: esBogotaProp }: { puntos: PuntoMapa[]; segmento: string; esBogota?: boolean }) {
+  const esBogota = esBogotaProp ?? SEGMENTOS_BOGOTA.includes(segmento)
   const [vista, setVista] = useState<Vista>('calor')
-
-  const puntos = useMemo(() => {
-    const grupos = new Map<string, Punto>()
-    for (const r of rows) {
-      if (!r.abierto) continue // el mapa muestra solo casos abiertos
-      // Usa lat/lng guardadas; si no hay, resuelve en el navegador desde
-      // ciudad + dirección (coordenadas embebidas / localidad / ciudad).
-      let lat = r.lat, lng = r.lng
-      if (lat == null || lng == null) {
-        const g = geoDeCaso(r.ciudad, r.direccion)
-        if (g) { lat = g.lat; lng = g.lng }
-      }
-      if (lat == null || lng == null) continue
-      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`
-      const g = grupos.get(key)
-      if (g) g.count++
-      else grupos.set(key, { lat, lng, ciudad: ciudadLegible(r.ciudad, 'Sin ciudad'), seg: r.segmento, count: 1 })
-    }
-    return [...grupos.values()]
-  }, [rows])
 
   const totalGeo = puntos.reduce((a, p) => a + p.count, 0)
   const maxC = Math.max(1, ...puntos.map((p) => p.count))
@@ -85,13 +61,9 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
           </div>
         </div>
       </div>
-      {/* key = alcance del mapa: react-leaflet solo aplica center/zoom al montar,
-          así que forzamos el remonte cuando se cambia entre Bogotá y Colombia. */}
+      {/* key = alcance del mapa: react-leaflet solo aplica center/zoom al montar. */}
       <MapContainer key={esBogota ? 'bogota' : 'colombia'} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>
-        <TileLayer
-          attribution="&copy; OpenStreetMap"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {vista === 'calor' && puntos.length > 0 && (
           <HeatLayer points={heatPts} max={maxC} radius={esBogota ? 32 : 24} />
         )}
@@ -103,7 +75,7 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
             pathOptions={{ color: SEG_COLOR[p.seg] ?? '#0b5aa5', fillColor: SEG_COLOR[p.seg] ?? '#0b5aa5', fillOpacity: 0.55, weight: 1 }}
           >
             <Popup>
-              <strong>{p.ciudad}</strong><br />{p.count.toLocaleString('es-CO')} caso(s)
+              <strong>{ciudadLegible(p.ciudad, 'Sin ciudad')}</strong><br />{p.count.toLocaleString('es-CO')} caso(s)
             </Popup>
           </CircleMarker>
         ))}
@@ -117,7 +89,7 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
       )}
       {!puntos.length && (
         <p className="mt-2 text-center text-sm text-slate-400">
-          Sin casos ubicados. Si la ciudad sale como un Id, sincroniza de nuevo desde <a className="text-brand underline" href="/admin">/admin</a> para traer ciudad y dirección.
+          Sin casos abiertos ubicados en esta vista.
         </p>
       )}
     </div>
