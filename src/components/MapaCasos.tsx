@@ -44,6 +44,7 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
   const puntos = useMemo(() => {
     const grupos = new Map<string, Punto>()
     for (const r of rows) {
+      if (!r.abierto) continue // el mapa muestra solo casos abiertos
       // Usa lat/lng guardadas; si no hay, resuelve en el navegador desde
       // ciudad + dirección (coordenadas embebidas / localidad / ciudad).
       let lat = r.lat, lng = r.lng
@@ -73,7 +74,7 @@ export default function MapaCasos({ rows, segmento }: { rows: Caso[]; segmento: 
           {esBogota ? 'Mapa de calor · Bogotá' : 'Mapa de calor · Colombia'}
         </h3>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} casos ubicados</span>
+          <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} abiertos ubicados</span>
           <div className="flex overflow-hidden rounded-full border border-slate-200 text-[11px] font-bold">
             {(['calor', 'puntos'] as Vista[]).map((v) => (
               <button key={v} onClick={() => setVista(v)}

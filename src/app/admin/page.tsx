@@ -134,6 +134,26 @@ export default function Admin() {
     }
   }
 
+  async function diagnosticarSegmentos() {
+    if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
+    setBusy(true)
+    push('Analizando segmentación (mesa → segmento → casos)…')
+    try {
+      const res = await fetch('/api/segmentos-diag', { headers: { Authorization: `Bearer ${secret}` } })
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      const fmt = (o: Record<string, number>) => Object.entries(o).map(([k, v]) => `${k}=${Number(v).toLocaleString('es-CO')}`).join('  ·  ')
+      push('CLIENTES por MESA (texto real): ' + fmt(j.clientesPorMesa))
+      push('CLIENTES por SEGMENTO: ' + fmt(j.clientesPorSegmento))
+      push('CASOS por SEGMENTO: ' + fmt(j.casosPorSegmento))
+      push('👉 Copiame estas 3 líneas y ajusto el mapeo de mesas o el cruce de NIT.')
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -212,6 +232,13 @@ export default function Admin() {
             className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
           >
             Ver datos de ejemplo
+          </button>
+          <button
+            onClick={diagnosticarSegmentos} disabled={busy}
+            title="Muestra la distribución de mesa y segmento, y cuántos casos hay por segmento"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Diagnóstico de segmentos
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
