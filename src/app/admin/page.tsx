@@ -208,11 +208,11 @@ export default function Admin() {
     setBusy(true)
     push(`Debug tablero para ${seg}…`)
     try {
-      const res = await fetch(`/api/casos?segmento=${encodeURIComponent(seg)}`)
+      const res = await fetch(`/api/casos?segmento=${encodeURIComponent(seg)}&_=${Date.now()}`, { cache: 'no-store' })
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || 'Error')
       const d = j._debug || {}
-      push(`${seg}: rows=${d.rowsTraidas} · abiertos=${d.casosAbiertos} · clientesAbiertos=${d.clientesAbiertos} · distintos=${d.clientesDistintos}`)
+      push(`${seg} [${d.ver || 'viejo'}]: rows=${d.rowsTraidas} · abiertos=${d.casosAbiertos} · clientesAbiertos=${d.clientesAbiertos} · distintos=${d.clientesDistintos}`)
       push(`  KPI abiertos=${j.op?.kpis?.abiertos} · clientesAbiertos=${j.op?.kpis?.clientesAbiertos} · porSegmento[${seg}]=${j.porSegmento?.[seg]}`)
     } catch (e: any) {
       push('❌ ' + (e?.message || e))
