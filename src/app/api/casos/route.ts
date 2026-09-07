@@ -7,6 +7,7 @@ import type { Caso } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const PAG = 1000 // Supabase corta cada consulta en 1000 filas: hay que paginar.
 
@@ -87,12 +88,17 @@ export async function GET(req: Request) {
     // Estados disponibles para el filtro (de todo el segmento, sin filtrar).
     const estados = [...new Set(rows.map((r: Caso) => r.estado).filter(Boolean))].sort()
 
-    // Desglose por segmento SIEMPRE completo (conteos 'head', livianos).
+    // Desglose por segmento. El count exacto de la vista es poco confiable, así
+    // que se tallan las filas: si es "Todos", desde las ya traídas; si es un
+    // segmento, con un barrido liviano de solo la columna `segmento`.
     const porSegmento: Record<string, number> = {}
-    const counts = await Promise.all(
-      SEGMENTOS.map((s) => sb.from('casos_segmentados').select('id', { count: 'exact', head: true }).eq('segmento', s)),
-    )
-    SEGMENTOS.forEach((s, i) => { porSegmento[s] = counts[i].count ?? 0 })
+    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'segmento', null) : rows
+    const tally: Record<string, number> = {}
+    for (const r of filasParaTally as any[]) {
+      const s = String(r.segmento ?? '').normalize('NFC')
+      tally[s] = (tally[s] || 0) + 1
+    }
+    for (const s of SEGMENTOS) porSegmento[s] = tally[s.normalize('NFC')] || 0
 
     return NextResponse.json({
       ok: true,
@@ -103,7 +109,7 @@ export async function GET(req: Request) {
       abiertos, abiertosTotal: abiertosAll.length,
       estados,
       _debug: {
-        ver: 'eq-first-v4',
+        ver: 'seq-v5',
         rowsTraidas: rows.length,
         idsUnicos: new Set(rows.map((r: any) => r.id)).size,
         segTally: rows.reduce((m: any, r: any) => { const s = r.segmento || '∅'; m[s] = (m[s] || 0) + 1; return m }, {} as Record<string, number>),
@@ -135,33 +141,30 @@ async function columnaExiste(sb: SupabaseClient, col: string): Promise<boolean> 
   return !error
 }
 
-/** Trae todas las filas (opcionalmente de un segmento) paginando en paralelo. */
-async function traerFilas(sb: SupabaseClient, segmento: string | null, cols: string): Promise<any[]> {
-  // El filtro por segmento se aplica ANTES de order()/range(). Aplicarlo después
-  // rompe el filtro cuando el valor tiene acentos (p.ej. "Élite") y traía filas
-  // de otros segmentos. seg-clientes ya lo hacía en este orden y funcionaba.
-  const head = segmento
-    ? sb.from('casos_segmentados').select('id', { count: 'exact', head: true }).eq('segmento', segmento)
-    : sb.from('casos_segmentados').select('id', { count: 'exact', head: true })
-  const { count, error: ce } = await head
-  if (ce) throw ce
-  const total = count ?? 0
-  if (!total) return []
-
-  const paginas = Math.ceil(total / PAG)
-  const consultas = Array.from({ length: paginas }, (_, p) => {
+/**
+ * Fetch SECUENCIAL hasta una página incompleta. NO depende del count exacto, que
+ * en esta vista con joins puede venir mal (devolvía 909 cuando había >1000). El
+ * filtro .eq va ANTES de order()/range() (aplicarlo después lo rompe con acentos).
+ */
+async function fetchSecuencial(sb: SupabaseClient, cols: string, segmento: string | null): Promise<any[]> {
+  const rows: any[] = []
+  for (let desde = 0; ; desde += PAG) {
     const sel = segmento
       ? sb.from('casos_segmentados').select(cols).eq('segmento', segmento)
       : sb.from('casos_segmentados').select(cols)
-    // ORDER BY id: sin orden fijo, las páginas paralelas se solapan y se pierden filas.
-    return sel.order('id', { ascending: true }).range(p * PAG, p * PAG + PAG - 1)
-  })
-  const results = await Promise.all(consultas)
-  const rows: any[] = []
-  for (const { data, error } of results) { if (error) throw error; rows.push(...(data ?? [])) }
-  // Red de seguridad: garantiza el segmento aunque el fetch trajera de más.
-  // Normaliza el acento (NFC) por si el valor de la URL y el de la BD difieren.
+    const { data, error } = await sel.order('id', { ascending: true }).range(desde, desde + PAG - 1)
+    if (error) throw error
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAG) break
+  }
+  return rows
+}
+
+/** Trae todas las filas (opcionalmente de un segmento). */
+async function traerFilas(sb: SupabaseClient, segmento: string | null, cols: string): Promise<any[]> {
+  const rows = await fetchSecuencial(sb, cols, segmento)
   if (!segmento) return rows
+  // Red de seguridad: normaliza acentos (NFC) por si la URL y la BD difieren.
   const objetivo = segmento.normalize('NFC')
   return rows.filter((r) => String(r.segmento ?? '').normalize('NFC') === objetivo)
 }
