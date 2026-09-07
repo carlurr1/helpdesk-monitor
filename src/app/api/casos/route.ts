@@ -99,13 +99,14 @@ export async function GET(req: Request) {
     const estados = [...new Set(rows.map((r: Caso) => r.estado).filter(Boolean))].sort()
     const clientes = [...new Set(rows.map(clienteNombre).filter(Boolean))].sort().slice(0, 400)
 
-    // Desglose por segmento. El count exacto de la vista es poco confiable, así
-    // que se tallan las filas: si es "Todos", desde las ya traídas; si es un
-    // segmento, con un barrido liviano de solo la columna `segmento`.
+    // Desglose por segmento = casos ABIERTOS por segmento (coincide con el KPI
+    // "Casos abiertos"). Se talla: si es "Todos", desde las ya traídas; si es un
+    // segmento, con un barrido liviano de `segmento, abierto`.
     const porSegmento: Record<string, number> = {}
-    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'segmento', null) : rows
+    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'segmento, abierto', null) : rows
     const tally: Record<string, number> = {}
     for (const r of filasParaTally as any[]) {
+      if (!r.abierto) continue
       const s = String(r.segmento ?? '').normalize('NFC')
       tally[s] = (tally[s] || 0) + 1
     }

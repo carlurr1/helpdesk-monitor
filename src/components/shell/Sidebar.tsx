@@ -46,7 +46,10 @@ export function Sidebar({
         <div className={'nav-item' + (tab === 'operacion' ? ' active' : '')} onClick={() => onTab('operacion')}><Ico d={I.pulse} /> Operativo</div>
         <div className={'nav-item' + (tab === 'ejecutivo' ? ' active' : '')} onClick={() => onTab('ejecutivo')}><Ico d={I.exec} /> Ejecutivo</div>
 
-        <div className="nav-group">Segmentos</div>
+        <div className="nav-group flex items-center justify-between">
+          <span>Segmentos</span>
+          <span className="text-[9px] font-semibold normal-case tracking-normal text-slate-600">abiertos</span>
+        </div>
         {opciones.map((s) => {
           const n = counts?.[s]
           const active = s === segmento
@@ -58,7 +61,7 @@ export function Sidebar({
                   : <span className="nav-ico grid place-items-center"><span className="h-2 w-2 rounded-full" style={{ background: SEG_DOT[s] || '#8a94a6' }} /></span>}
                 <span className="truncate">{s}</span>
               </span>
-              {n != null && <span className="tnum rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ background: 'rgba(255,255,255,0.07)', color: '#c3ccdb' }}>{n.toLocaleString('es-CO')}</span>}
+              {n != null && <span title="Casos abiertos" className="tnum rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ background: 'rgba(255,255,255,0.07)', color: '#c3ccdb' }}>{n.toLocaleString('es-CO')}</span>}
             </div>
           )
         })}
