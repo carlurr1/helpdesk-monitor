@@ -223,6 +223,28 @@ export default function Admin() {
     }
   }
 
+  async function buscarCaso() {
+    if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
+    const numero = window.prompt('Número de caso (ej. 26767171):', '')
+    if (!numero) return
+    setBusy(true)
+    push(`Buscando caso ${numero}…`)
+    try {
+      const res = await fetch(`/api/buscar-caso?numero=${encodeURIComponent(numero)}`, { headers: { Authorization: `Bearer ${secret}` } })
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      const sf = j.salesforce?.[0]
+      if (sf) push(`  SF: estado=${sf.estado} · cerrado=${sf.cerrado} · recordType=${sf.recordType} · cuenta=${sf.cuenta} · nit=${sf.nit} · modificado=${sf.modificado}`)
+      else push('  SF: no existe ese caso.')
+      push(`  Supabase: ${j.supabase?.length ? JSON.stringify(j.supabase[0]) : 'no está'}`)
+      push(`  ▶ ${j.motivo}`)
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -329,6 +351,13 @@ export default function Admin() {
             className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
           >
             Debug tablero
+          </button>
+          <button
+            onClick={buscarCaso} disabled={busy}
+            title="Busca un caso por número en Salesforce y Supabase, y dice por qué no aparece"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Buscar caso
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
