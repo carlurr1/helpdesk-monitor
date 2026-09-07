@@ -102,6 +102,13 @@ export async function GET(req: Request) {
       kpis, porSegmento, op, ej, puntos,
       abiertos, abiertosTotal: abiertosAll.length,
       estados,
+      _debug: {
+        rowsTraidas: rows.length,
+        rowsFiltradas: rowsFiltradas.length,
+        casosAbiertos: abiertosAll.length,
+        clientesAbiertos: op.kpis.clientesAbiertos,
+        clientesDistintos: new Set(abiertosAll.map((r) => r.cuenta_nombre || r.cliente_base || r.nit || '?')).size,
+      },
     })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
