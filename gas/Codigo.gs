@@ -34,7 +34,7 @@ function cfg_() {
     CITY_FIELD: p.getProperty('SF_CITY_FIELD') || 'Ciudad_Instalacion__c',
     CITY_NAME_FIELD: p.getProperty('SF_CITY_NAME_FIELD') || 'Ciudad_Instalacion__r.Name',
     ADDRESS_FIELD: p.getProperty('SF_ADDRESS_FIELD') || 'Direccion_Instalacion__c',
-    EXTID_FIELD: p.getProperty('SF_EXTID_FIELD') || '',  // ej. Account.Identificador_Externo__c
+    EXTID_FIELD: p.getProperty('SF_EXTID_FIELD') || 'Account.External_Id__c',  // "Identificador Externo"
     RECORD_TYPE: p.getProperty('SF_RECORD_TYPE') || 'SOPORTE TECNICO',
     WINDOW_DAYS: parseInt(p.getProperty('SF_WINDOW_DAYS') || '60', 10)
   };

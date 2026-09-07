@@ -109,10 +109,9 @@ export const SF_CFG = {
   // Confirmado por diagnóstico: Direccion_Instalacion__c. Pon '' para desactivar.
   ADDRESS_FIELD: process.env.SF_ADDRESS_FIELD ?? 'Direccion_Instalacion__c',
   // Identificador Externo (Distrito/Élite comparten NIT en Bogotá; este campo
-  // los diferencia, p.ej. 899999061013). Suele estar en la cuenta: se accede
-  // como 'Account.<ApiName>'. Vacío = desactivado. Úsalo para cruzar el segmento
-  // cuando el NIT no alcanza. Descúbrelo con /api/sf-fields?sobject=Account.
-  EXTID_FIELD: process.env.SF_EXTID_FIELD || '',
+  // los diferencia, p.ej. 899999061013). Confirmado por diagnóstico:
+  // Account.External_Id__c (etiqueta "Identificador Externo"). '' para desactivar.
+  EXTID_FIELD: process.env.SF_EXTID_FIELD ?? 'Account.External_Id__c',
   WINDOW_DAYS: parseInt(process.env.SF_WINDOW_DAYS || '60', 10),
 }
 
