@@ -84,5 +84,6 @@ export interface ApiCasos {
   dist?: Distribuciones
   clientes?: string[]
   cliente?: string
+  sincronizado?: string | null
   error?: string
 }
