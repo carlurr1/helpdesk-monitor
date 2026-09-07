@@ -16,6 +16,10 @@ export interface Caso {
   fin_afectacion: string | null
   ciudad: string
   direccion: string | null
+  proceso: string | null
+  origen: string | null
+  id_servicio: string | null
+  id_legado: string | null
   departamento: string | null
   lat: number | null
   lng: number | null
@@ -42,11 +46,25 @@ export interface FilaTabla {
   estado: string
   categoria: string
   tipologia: string
+  proceso: string
+  origen: string
   ciudad: string
   direccion: string
+  id_servicio: string
+  id_legado: string
   fecha_apertura: string | null
   edad: number
   sem: 'critical' | 'warning' | 'healthy'
+}
+
+// Distribución simple (para donas / barras).
+export interface DistItem { label: string; value: number }
+export interface Distribuciones {
+  categoria: DistItem[]
+  origen: DistItem[]
+  proceso: DistItem[]
+  ciudades: DistItem[]
+  estados: DistItem[]
 }
 
 // Respuesta compacta: el servidor ya calculó todo (no manda filas crudas).
@@ -63,5 +81,8 @@ export interface ApiCasos {
   abiertos?: FilaTabla[]
   abiertosTotal?: number
   estados?: string[]
+  dist?: Distribuciones
+  clientes?: string[]
+  cliente?: string
   error?: string
 }

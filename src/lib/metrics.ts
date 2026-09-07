@@ -206,6 +206,36 @@ export function computeOperativo(rows: Caso[], now: Date = new Date(), dias = 14
   }
 }
 
+// ── Distribuciones (donas / barras) sobre casos abiertos ──
+export interface DistItem { label: string; value: number }
+export interface Distribuciones {
+  categoria: DistItem[]
+  origen: DistItem[]
+  proceso: DistItem[]
+  ciudades: DistItem[]
+  estados: DistItem[]
+}
+
+function topDist(rows: Caso[], get: (c: Caso) => string, max = 8, placeholder = 'Sin dato'): DistItem[] {
+  const m = new Map<string, number>()
+  for (const r of rows) {
+    const k = (get(r) || '').trim() || placeholder
+    m.set(k, (m.get(k) || 0) + 1)
+  }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([label, value]) => ({ label, value }))
+}
+
+export function computeDistribuciones(rows: Caso[]): Distribuciones {
+  const abiertos = rows.filter((r) => r.abierto)
+  return {
+    categoria: topDist(abiertos, (c) => categoriaDe(c), 4),
+    origen: topDist(abiertos, (c) => c.origen || '', 6),
+    proceso: topDist(abiertos, (c) => c.proceso || '', 6),
+    ciudades: topDist(abiertos, (c) => c.ciudad || '', 8),
+    estados: topDist(abiertos, (c) => c.estado || '', 8),
+  }
+}
+
 // ── KPIs / series Ejecutivo ──
 export interface KpisEjecutivo {
   pendientes: number

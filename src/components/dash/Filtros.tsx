@@ -1,44 +1,48 @@
 'use client'
-import { CATEGORIAS, type Categoria } from '@/lib/metrics'
-
-const CHIP: Record<Categoria, string> = {
-  Incidente: 'data-[on=true]:bg-[#ea6b5d] data-[on=true]:text-white data-[on=true]:border-[#ea6b5d] text-[#b42318] bg-[#ea6b5d]/10',
-  Evento: 'data-[on=true]:bg-[#f79009] data-[on=true]:text-white data-[on=true]:border-[#f79009] text-[#b54708] bg-[#f79009]/10',
-  Requerimiento: 'data-[on=true]:bg-[#0b5aa5] data-[on=true]:text-white data-[on=true]:border-[#0b5aa5] text-[#0b5aa5] bg-[#0b5aa5]/10',
-  Otros: '',
-}
+import { CATEGORIAS, CAT_COLOR, type Categoria } from '@/lib/metrics'
 
 export function Filtros({
-  cats, onToggleCat, estados, estado, onEstado, onReset,
+  cats, onToggleCat, estados, estado, onEstado, clientes, cliente, onCliente, onReset,
 }: {
   cats: Categoria[]
   onToggleCat: (c: Categoria) => void
   estados: string[]
   estado: string
   onEstado: (s: string) => void
+  clientes: string[]
+  cliente: string
+  onCliente: (c: string) => void
   onReset: () => void
 }) {
-  const activo = cats.length > 0 || estado !== ''
+  const activo = cats.length > 0 || estado !== '' || cliente !== ''
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Filtrar</span>
+    <div className="flex flex-wrap items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 shadow-[var(--shadow-sm)]">
+      <span className="eyebrow mr-1">Filtros</span>
       <div className="flex gap-1.5">
-        {CATEGORIAS.map((c) => (
-          <button key={c} data-on={cats.includes(c)} onClick={() => onToggleCat(c)}
-            className={'rounded-full border border-transparent px-3 py-1.5 text-[11px] font-extrabold ' + CHIP[c]}>
-            ● {c}
-          </button>
-        ))}
+        {CATEGORIAS.map((c) => {
+          const on = cats.includes(c)
+          return (
+            <button key={c} onClick={() => onToggleCat(c)}
+              className={'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold transition ' + (on ? 'text-white' : 'text-[var(--text-2)] hover:bg-[var(--surface-2)]')}
+              style={on ? { background: CAT_COLOR[c], borderColor: CAT_COLOR[c] } : { borderColor: 'var(--border-strong)' }}>
+              <span className="h-2 w-2 rounded-full" style={{ background: on ? '#fff' : CAT_COLOR[c] }} />{c}
+            </button>
+          )
+        })}
       </div>
-      <span className="mx-1 h-6 w-px bg-slate-200" />
-      <select value={estado} onChange={(e) => onEstado(e.target.value)}
-        className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-brand">
+      <span className="mx-1 h-5 w-px bg-[var(--border)]" />
+      <select value={estado} onChange={(e) => onEstado(e.target.value)} className="field py-[7px]">
         <option value="">Todos los estados</option>
         {estados.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
+      <select value={cliente} onChange={(e) => onCliente(e.target.value)} className="field max-w-[240px] py-[7px]">
+        <option value="">Todos los clientes</option>
+        {clientes.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
       {activo && (
-        <button onClick={onReset} className="rounded-full border border-slate-200 px-3 py-1.5 text-[11px] font-extrabold text-slate-500 hover:bg-slate-50">
-          ✕ Limpiar
+        <button onClick={onReset} className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[var(--text-2)] hover:bg-[var(--surface-2)]">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          Limpiar
         </button>
       )}
     </div>

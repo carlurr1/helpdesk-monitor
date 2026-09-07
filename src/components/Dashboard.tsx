@@ -1,41 +1,49 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { SegmentSelector } from './SegmentSelector'
+import { Sidebar } from './shell/Sidebar'
+import { Topbar } from './shell/Topbar'
 import { KpiTile } from './dash/KpiTile'
-import { TricolorBars, LeyendaCategorias } from './dash/TricolorBars'
-import { TendenciaChart, TmsChart, AgingChart } from './dash/Charts'
+import { TricolorBars } from './dash/TricolorBars'
+import { TendenciaChart, TmsChart, AgingChart, DonutCategoria, BarList } from './dash/Charts'
 import { CasosTablaSemaforo } from './dash/CasosTablaSemaforo'
 import { Filtros } from './dash/Filtros'
 import { ExportExcel } from './dash/ExportExcel'
 import type { Categoria } from '@/lib/metrics'
-import { ETB } from '@/lib/colors'
 import type { ApiCasos } from '@/lib/types'
 
 const MapaCasos = dynamic(() => import('./MapaCasos'), {
   ssr: false,
-  loading: () => <div className="grid h-[440px] place-items-center rounded-xl border border-slate-200 bg-white text-sm text-slate-400">Cargando mapa…</div>,
+  loading: () => <div className="card grid h-[520px] place-items-center text-sm text-[var(--muted)]">Cargando mapa…</div>,
 })
 
 const REFRESH_MS = 60000
 type Tab = 'operacion' | 'ejecutivo'
+
+function Section({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-4">{children}</div>
+}
 
 export default function Dashboard() {
   const [segmento, setSegmento] = useState('Todos')
   const [tab, setTab] = useState<Tab>('operacion')
   const [cats, setCats] = useState<Categoria[]>([])
   const [estado, setEstado] = useState('')
+  const [cliente, setCliente] = useState('')
   const [data, setData] = useState<ApiCasos | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
+  const [navOpen, setNavOpen] = useState(false)
+  const scroller = useRef<HTMLDivElement>(null)
 
-  const cargar = useCallback((seg: string, cs: Categoria[], est: string, silencioso = false) => {
+  const cargar = useCallback((seg: string, cs: Categoria[], est: string, cli: string, silencioso = false) => {
     if (!silencioso) setLoading(true)
     setError(null)
     const qs = new URLSearchParams({ segmento: seg })
     if (cs.length) qs.set('cats', cs.join(','))
     if (est) qs.set('estado', est)
+    if (cli) qs.set('cliente', cli)
     return fetch(`/api/casos?${qs.toString()}`)
       .then((r) => r.json())
       .then((j: ApiCasos) => { if (j.ok) { setData(j); setUpdated(new Date()) } else setError(j.error || 'Error desconocido') })
@@ -43,144 +51,130 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { cargar(segmento, cats, estado) }, [segmento, cats, estado, cargar])
+  useEffect(() => { cargar(segmento, cats, estado, cliente) }, [segmento, cats, estado, cliente, cargar])
   useEffect(() => {
-    const id = setInterval(() => cargar(segmento, cats, estado, true), REFRESH_MS)
+    const id = setInterval(() => cargar(segmento, cats, estado, cliente, true), REFRESH_MS)
     return () => clearInterval(id)
-  }, [segmento, cats, estado, cargar])
+  }, [segmento, cats, estado, cliente, cargar])
 
   const op = data?.op
   const ej = data?.ej
+  const dist = data?.dist
 
+  const cambiarSegmento = (s: string) => { setCliente(''); setSegmento(s); setNavOpen(false) }
+  const filtrarCliente = (c: string) => { setCliente(c); scroller.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
   const toggleCat = (c: Categoria) => setCats((p) => p.includes(c) ? p.filter((x) => x !== c) : [...p, c])
-  const reset = () => { setCats([]); setEstado('') }
+  const reset = () => { setCats([]); setEstado(''); setCliente('') }
+  const logout = () => { try { localStorage.removeItem('etb_monitor_auth') } catch {}; location.reload() }
 
   return (
-    <div className="space-y-4">
-      {/* Topbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div>
-          <h1 className="text-lg font-extrabold text-slate-800">Monitor Help Desk · ETB</h1>
-          <p className="text-xs text-slate-400">{updated ? `Actualizado ${updated.toLocaleTimeString('es-CO')}` : 'Cargando…'}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ExportExcel segmento={segmento} cats={cats} estado={estado} />
-          <button onClick={() => cargar(segmento, cats, estado)} title="Actualizar ahora"
-            className="rounded-full bg-gradient-to-br from-brand to-sky-500 px-4 py-2 text-xs font-extrabold text-white shadow-sm">Refrescar</button>
-        </div>
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar: fijo en desktop, off-canvas en móvil */}
+      {navOpen && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setNavOpen(false)} />}
+      <div className={'fixed inset-y-0 left-0 z-50 transition-transform lg:static lg:z-auto ' + (navOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
+        <Sidebar tab={tab} onTab={(t) => { setTab(t); setNavOpen(false) }} segmento={segmento} onSegmento={cambiarSegmento} counts={data?.porSegmento} onLogout={logout} />
       </div>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {([['operacion', 'Operativo'], ['ejecutivo', 'Ejecutivo']] as [Tab, string][]).map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={'rounded-full border px-4 py-1.5 text-sm font-extrabold ' + (tab === k ? 'border-brand/20 bg-brand/10 text-brand' : 'border-slate-200 bg-white text-slate-600 hover:border-brand')}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <div ref={scroller} className="flex-1 overflow-y-auto">
+        <Topbar
+          segmento={segmento} tab={tab} updated={updated} cliente={cliente}
+          onClearCliente={() => setCliente('')} onRefresh={() => cargar(segmento, cats, estado, cliente)}
+          onMenu={() => setNavOpen(true)}
+          right={<ExportExcel segmento={segmento} cats={cats} estado={estado} cliente={cliente} />}
+        />
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <SegmentSelector value={segmento} onChange={setSegmento} counts={data?.porSegmento} />
-      </div>
-      <Filtros cats={cats} onToggleCat={toggleCat} estados={data?.estados ?? []} estado={estado} onEstado={setEstado} onReset={reset} />
+        <div className="space-y-4 p-6">
+          <Filtros
+            cats={cats} onToggleCat={toggleCat} estados={data?.estados ?? []} estado={estado} onEstado={setEstado}
+            clientes={data?.clientes ?? []} cliente={cliente} onCliente={setCliente} onReset={reset}
+          />
 
-      {error && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No se pudieron cargar los casos: {error}.</div>}
-      {loading && !data && <p className="text-sm text-slate-400">Cargando…</p>}
+          {error && <div className="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">No se pudieron cargar los casos: {error}.</div>}
+          {loading && !data && <p className="text-sm text-[var(--muted)]">Cargando…</p>}
 
-      {data && op && tab === 'operacion' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label="Casos abiertos" value={op.kpis.abiertos} accent={ETB.blue} meta="Total abiertos" />
-            <KpiTile label="Ingresos mes" value={op.kpis.ingresosMes} accent={ETB.yellow} meta={`Hoy: ${op.kpis.ingresosHoy}`} />
-            <KpiTile label="Cierres mes" value={op.kpis.cierresMes} accent={ETB.teal} meta={`Hoy: ${op.kpis.cierresHoy}`} />
-            <KpiTile label="Antigüedad prom." value={`${op.kpis.antiguedadProm} d`} accent={ETB.coral} meta="Promedio de abiertos" />
-            <KpiTile label="Críticos" value={`${op.kpis.pctCriticos}%`} accent={ETB.coral} meta="≥ 8 días" />
-            <KpiTile label="Atención" value={`${op.kpis.pctAtencion}%`} accent={ETB.yellow} meta="5–7 días" />
-            <KpiTile label="Clientes abiertos" value={op.kpis.clientesAbiertos} accent={ETB.green} meta="Con casos abiertos" />
-            <KpiTile label="Prom. ingresos/día" value={op.kpis.ingresosDiaProm} accent={ETB.blue} />
-            <KpiTile label="Prom. cierres/día" value={op.kpis.cierresDiaProm} accent={ETB.teal} />
-            <KpiTile label="Ingresos hoy" value={op.kpis.ingresosHoy} accent={ETB.yellow} />
-            <KpiTile label="Cierres hoy" value={op.kpis.cierresHoy} accent={ETB.green} />
-            <KpiTile label="Ubicados en mapa" value={data.kpis.ubicados} accent={ETB.blue} meta="Abiertos con ubicación" />
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-            <TendenciaChart data={op.tendencia} />
-            <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-2">
-                <KpiTile label="Críticos" value={op.semaforos.critical} accent={ETB.coral} />
-                <KpiTile label="Atención" value={op.semaforos.warning} accent={ETB.yellow} />
-                <KpiTile label="Al día" value={op.semaforos.healthy} accent={ETB.green} />
-                <KpiTile label="Total" value={op.kpis.abiertos} accent={ETB.blue} />
+          {data && op && tab === 'operacion' && (
+            <Section>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <KpiTile label="Casos abiertos" value={op.kpis.abiertos} tone="accent" meta="Total del segmento" />
+                <KpiTile label="Críticos" value={`${op.kpis.pctCriticos}%`} tone="danger" meta={`${op.semaforos.critical} casos ≥ 8 d`} />
+                <KpiTile label="En atención" value={`${op.kpis.pctAtencion}%`} tone="warning" meta={`${op.semaforos.warning} casos 5–7 d`} />
+                <KpiTile label="Antigüedad prom." value={`${op.kpis.antiguedadProm} d`} meta="Promedio de abiertos" />
+                <KpiTile label="Clientes abiertos" value={op.kpis.clientesAbiertos} tone="success" meta="Con casos abiertos" />
+                <KpiTile label="Ubicados en mapa" value={data.kpis.ubicados} meta="Abiertos geolocalizados" />
               </div>
-              <TricolorBars title="Estados top" subtitle="Casos por estado (por categoría)" items={op.estados} />
-            </div>
-          </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <TricolorBars title="Top clientes abiertos" subtitle="Clientes con más casos abiertos" items={op.topAbiertos} rank />
-            <TricolorBars title="Top clientes críticos" subtitle="Clientes con casos de más de 8 días" items={op.topCriticos} rank />
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            <MapaCasos puntos={data.puntos ?? []} segmento={segmento} esBogota={data.esBogota} />
-            <AgingChart aging={op.aging} />
-          </div>
-
-          <CasosTablaSemaforo abiertos={data.abiertos ?? []} total={data.abiertosTotal ?? 0} />
-        </>
-      )}
-
-      {data && ej && tab === 'ejecutivo' && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <KpiTile label="Casos abiertos" value={ej.kpis.pendientes} accent={ETB.blue} />
-            <KpiTile label="Ingresos (7 días)" value={ej.kpis.ingresos7} accent={ETB.yellow} meta="Últimos 7 días" />
-            <KpiTile label="Cierres (7 días)" value={ej.kpis.cierres7} accent={ETB.teal} meta="Últimos 7 días" />
-            <KpiTile label="Ingresos/día" value={ej.kpis.ingresosDiaProm} accent={ETB.yellow} meta="Promedio 7 días" />
-            <KpiTile label="Cierres/día" value={ej.kpis.cierresDiaProm} accent={ETB.green} meta="Promedio 7 días" />
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-            <TendenciaChart data={ej.tendencia} showAbiertos={false} title="Tendencia últimos 14 días" subtitle="Ingresos y cierres diarios" />
-            <div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <h3 className="mb-1 text-[13px] font-extrabold uppercase tracking-wide text-brand">Top 10 clientes</h3>
-                <p className="mb-2 text-xs text-slate-400">Casos abiertos por cliente</p>
-                <LeyendaCategorias />
-              </div>
-              <div className="mt-2"><TricolorBars title="" items={ej.top10} rank /></div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            <TmsChart data={ej.tms} />
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-4 py-3">
-                <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-brand">Top 5 clientes (últimos 7 días)</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Clientes con mayores ingresos</p>
-              </div>
-              <div className="space-y-2 p-3">
-                {!ej.top5.length && <p className="py-6 text-center text-sm text-slate-400">Sin ingresos en los últimos 7 días</p>}
-                {ej.top5.map((c, i) => (
-                  <div key={c.label} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2">
-                    <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-100 text-xs font-extrabold text-emerald-700">{i + 1}</span>
-                    <span className="flex-1 truncate text-sm font-semibold text-slate-700">{c.label}</span>
-                    <span className="text-sm font-extrabold text-emerald-700">{c.total}</span>
+              <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+                <TendenciaChart data={op.tendencia} />
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <KpiTile label="Ingresos mes" value={op.kpis.ingresosMes} tone="warning" meta={`Hoy ${op.kpis.ingresosHoy}`} />
+                    <KpiTile label="Cierres mes" value={op.kpis.cierresMes} tone="success" meta={`Hoy ${op.kpis.cierresHoy}`} />
+                    <KpiTile label="Total abiertos" value={op.kpis.abiertos} tone="accent" />
                   </div>
-                ))}
+                  {dist && <DonutCategoria data={dist.categoria} />}
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <MapaCasos puntos={data.puntos ?? []} segmento={segmento} esBogota={data.esBogota} />
-            <AgingChart aging={ej.aging} />
-          </div>
-        </>
-      )}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <TricolorBars title="Top clientes abiertos" subtitle="Clientes con más casos abiertos" items={op.topAbiertos} rank onCliente={filtrarCliente} />
+                <TricolorBars title="Top clientes críticos" subtitle="Con casos de más de 8 días" items={op.topCriticos} rank onCliente={filtrarCliente} />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+                <MapaCasos puntos={data.puntos ?? []} segmento={segmento} esBogota={data.esBogota} />
+                <AgingChart aging={op.aging} />
+              </div>
+
+              {dist && (
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <BarList title="Por origen" subtitle="Casos abiertos" data={dist.origen} color="#0b5aa5" />
+                  <BarList title="Por proceso" subtitle="Casos abiertos" data={dist.proceso} color="#12b7b0" />
+                  <BarList title="Top ciudades" subtitle="Casos abiertos" data={dist.ciudades} color="#7c5cff" />
+                </div>
+              )}
+
+              <CasosTablaSemaforo abiertos={data.abiertos ?? []} total={data.abiertosTotal ?? 0} onCliente={filtrarCliente} />
+            </Section>
+          )}
+
+          {data && ej && tab === 'ejecutivo' && (
+            <Section>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                <KpiTile label="Casos abiertos" value={ej.kpis.pendientes} tone="accent" />
+                <KpiTile label="Ingresos 7 días" value={ej.kpis.ingresos7} tone="warning" meta={`${ej.kpis.ingresosDiaProm}/día`} />
+                <KpiTile label="Cierres 7 días" value={ej.kpis.cierres7} tone="success" meta={`${ej.kpis.cierresDiaProm}/día`} />
+                <KpiTile label="Críticos" value={`${ej.kpis.pctCriticos}%`} tone="danger" meta="≥ 8 días" />
+                <KpiTile label="Ubicados" value={data.kpis.ubicados} meta="En mapa" />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+                <TendenciaChart data={ej.tendencia} showAbiertos={false} title="Tendencia 14 días" subtitle="Ingresos y cierres diarios" />
+                <TricolorBars title="Top 10 clientes" subtitle="Casos abiertos por cliente" items={ej.top10} rank onCliente={filtrarCliente} />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <TmsChart data={ej.tms} />
+                {dist && <DonutCategoria data={dist.categoria} />}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+                <MapaCasos puntos={data.puntos ?? []} segmento={segmento} esBogota={data.esBogota} />
+                <AgingChart aging={ej.aging} />
+              </div>
+
+              {dist && (
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <BarList title="Por origen" data={dist.origen} color="#0b5aa5" />
+                  <BarList title="Por proceso" data={dist.proceso} color="#12b7b0" />
+                  <BarList title="Por estado" data={dist.estados} color="#dc6803" />
+                </div>
+              )}
+
+              <CasosTablaSemaforo abiertos={data.abiertos ?? []} total={data.abiertosTotal ?? 0} onCliente={filtrarCliente} />
+            </Section>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

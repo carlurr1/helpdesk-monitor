@@ -44,25 +44,24 @@ export default function MapaCasos({ puntos, segmento, esBogota: esBogotaProp }: 
   const heatPts = useMemo<[number, number, number][]>(() => puntos.map((p) => [p.lat, p.lng, p.count]), [puntos])
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          {esBogota ? 'Mapa de calor · Bogotá' : 'Mapa de calor · Colombia'}
-        </h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{totalGeo.toLocaleString('es-CO')} abiertos ubicados</span>
-          <div className="flex overflow-hidden rounded-full border border-slate-200 text-[11px] font-bold">
-            {(['calor', 'puntos'] as Vista[]).map((v) => (
-              <button key={v} onClick={() => setVista(v)}
-                className={'px-3 py-1 ' + (vista === v ? 'bg-brand text-white' : 'bg-white text-slate-500 hover:bg-slate-50')}>
-                {v === 'calor' ? 'Calor' : 'Puntos'}
-              </button>
-            ))}
-          </div>
+    <div className="card overflow-hidden">
+      <div className="card-head">
+        <div>
+          <div className="card-title">{esBogota ? 'Mapa de calor · Bogotá' : 'Mapa de calor · Colombia'}</div>
+          <div className="card-sub tnum">{totalGeo.toLocaleString('es-CO')} abiertos ubicados</div>
+        </div>
+        <div className="flex overflow-hidden rounded-lg border border-[var(--border-strong)] text-[12px] font-semibold">
+          {(['calor', 'puntos'] as Vista[]).map((v) => (
+            <button key={v} onClick={() => setVista(v)}
+              className={'px-3 py-[6px] ' + (vista === v ? 'bg-[var(--accent)] text-white' : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]')}>
+              {v === 'calor' ? 'Calor' : 'Puntos'}
+            </button>
+          ))}
         </div>
       </div>
+      <div className="p-3 pt-0">
       {/* key = alcance del mapa: react-leaflet solo aplica center/zoom al montar. */}
-      <MapContainer key={esBogota ? 'bogota' : 'colombia'} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8 }}>
+      <MapContainer key={esBogota ? 'bogota' : 'colombia'} center={center} zoom={zoom} scrollWheelZoom={false} style={{ height: 440, width: '100%', borderRadius: 8, marginTop: 12 }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {vista === 'calor' && puntos.length > 0 && (
           <HeatLayer points={heatPts} max={maxC} radius={esBogota ? 32 : 24} />
@@ -81,17 +80,16 @@ export default function MapaCasos({ puntos, segmento, esBogota: esBogotaProp }: 
         ))}
       </MapContainer>
       {vista === 'calor' && puntos.length > 0 && (
-        <div className="mt-2 flex items-center gap-2 px-1 text-[10px] font-bold text-slate-400">
+        <div className="mt-2.5 flex items-center gap-2 px-1 text-[10px] font-semibold text-[var(--muted)]">
           <span>Menos</span>
-          <span className="h-2 flex-1 rounded-full" style={{ background: 'linear-gradient(90deg,#1f7ad1,#12b7b0,#f79009,#ea6b5d,#b42318)' }} />
+          <span className="h-1.5 flex-1 rounded-full" style={{ background: 'linear-gradient(90deg,#1f7ad1,#12b7b0,#f79009,#ea6b5d,#b42318)' }} />
           <span>Más casos</span>
         </div>
       )}
       {!puntos.length && (
-        <p className="mt-2 text-center text-sm text-slate-400">
-          Sin casos abiertos ubicados en esta vista.
-        </p>
+        <p className="mt-3 text-center text-sm text-[var(--muted)]">Sin casos abiertos ubicados en esta vista.</p>
       )}
+      </div>
     </div>
   )
 }

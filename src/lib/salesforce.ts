@@ -157,6 +157,8 @@ export function buildCasesSOQL(): string {
     ...(extId ? [extId] : []),
     'Tipologia__c', 'TipoCaso__c', 'Categoria_legado__c',
     'FechaInicioAfectacion__c', 'FechaFinAfectacion__c',
+    // Columnas extra para la tabla (como el reporte original).
+    'Proceso__c', 'Origin', 'IDServicio__c', 'Id_Sistema_Legado__c',
   ].join(', ')
 
   return `SELECT ${cols}

@@ -1,68 +1,99 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { SEMAFORO_LABEL, type Semaforo } from '@/lib/metrics'
+import { CAT_COLOR } from '@/lib/metrics'
 import type { FilaTabla } from '@/lib/types'
 
 const PILLS: { k: 'all' | Semaforo; label: string }[] = [
   { k: 'all', label: 'Todos' }, { k: 'critical', label: 'Críticos' },
   { k: 'warning', label: 'Atención' }, { k: 'healthy', label: 'Al día' },
 ]
-const badge: Record<Semaforo, string> = {
-  critical: 'bg-red-50 text-red-700', warning: 'bg-amber-50 text-amber-700', healthy: 'bg-emerald-50 text-emerald-700',
-}
+const badge: Record<Semaforo, string> = { critical: 'badge-danger', warning: 'badge-warning', healthy: 'badge-success' }
 function fecha(s: string | null) {
-  return s ? new Date(s).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
+  return s ? new Date(s).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 }
+const COLS = ['Semáforo', 'Caso', 'Cliente', 'Estado', 'Tipología', 'Categoría', 'Proceso', 'Origen', 'Apertura', 'Antigüedad', 'Ciudad', 'Dirección', 'ID Servicio', 'ID Legado']
 
-// Recibe la lista de abiertos YA calculada por el servidor (con semáforo y edad).
-export function CasosTablaSemaforo({ abiertos, total }: { abiertos: FilaTabla[]; total: number }) {
+export function CasosTablaSemaforo({
+  abiertos, total, onCliente,
+}: { abiertos: FilaTabla[]; total: number; onCliente?: (c: string) => void }) {
   const [filtro, setFiltro] = useState<'all' | Semaforo>('all')
-  const visibles = useMemo(
-    () => abiertos.filter((x) => filtro === 'all' || x.sem === filtro),
-    [abiertos, filtro],
-  )
+  const [q, setQ] = useState('')
+  const [menu, setMenu] = useState<string | null>(null)
+
+  const visibles = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return abiertos.filter((x) => (filtro === 'all' || x.sem === filtro) &&
+      (!t || x.numero.toLowerCase().includes(t) || x.cliente.toLowerCase().includes(t) || (x.id_legado || '').toLowerCase().includes(t) || (x.id_servicio || '').toLowerCase().includes(t)))
+  }, [abiertos, filtro, q])
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+    <div className="card">
+      <div className="card-head flex-wrap">
         <div>
-          <h3 className="text-[13px] font-extrabold uppercase tracking-wide text-brand">Casos abiertos</h3>
-          <p className="mt-0.5 text-xs text-slate-400">{total.toLocaleString('es-CO')} abiertos{total > abiertos.length ? ` · mostrando ${abiertos.length}` : ''}</p>
+          <div className="card-title">Casos abiertos</div>
+          <div className="card-sub">{total.toLocaleString('es-CO')} abiertos{total > abiertos.length ? ` · mostrando ${abiertos.length}` : ''}</div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {PILLS.map((p) => (
-            <button key={p.k} onClick={() => setFiltro(p.k)}
-              className={'rounded-full border px-3 py-1 text-xs font-bold ' + (filtro === p.k ? 'border-brand/20 bg-brand/10 text-brand' : 'border-slate-200 bg-white text-slate-600 hover:border-brand')}>
-              {p.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar caso, cliente, ID…" className="field w-56 pl-8" />
+          </div>
+          <div className="flex overflow-hidden rounded-lg border border-[var(--border-strong)]">
+            {PILLS.map((p) => (
+              <button key={p.k} onClick={() => setFiltro(p.k)}
+                className={'px-3 py-[7px] text-[12px] font-semibold ' + (filtro === p.k ? 'bg-[var(--accent)] text-white' : 'bg-[var(--surface)] text-[var(--text-2)] hover:bg-[var(--surface-2)]')}>
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1050px] text-sm">
+        <table className="tbl min-w-[1400px]">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-              <th className="px-4 py-2">Semáforo</th><th className="px-4 py-2">Caso</th><th className="px-4 py-2">Cliente</th>
-              <th className="px-4 py-2">Estado</th><th className="px-4 py-2">Categoría</th><th className="px-4 py-2">Tipología</th>
-              <th className="px-4 py-2">Ciudad</th><th className="px-4 py-2">Dirección</th><th className="px-4 py-2">Apertura</th><th className="px-4 py-2">Antigüedad</th>
-            </tr>
+            <tr>{COLS.map((c) => <th key={c}>{c}</th>)}</tr>
           </thead>
           <tbody>
             {visibles.map((r) => (
-              <tr key={r.id} className="border-t border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-2"><span className={'rounded-full px-2 py-0.5 text-[11px] font-bold ' + badge[r.sem]}>{SEMAFORO_LABEL[r.sem]}</span></td>
-                <td className="px-4 py-2 font-medium text-slate-700">{r.numero}</td>
-                <td className="px-4 py-2 text-slate-600">{r.cliente}</td>
-                <td className="px-4 py-2 text-slate-600">{r.estado || '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{r.categoria}</td>
-                <td className="px-4 py-2 text-slate-500">{r.tipologia || '—'}</td>
-                <td className="px-4 py-2 text-slate-600">{r.ciudad || '—'}</td>
-                <td className="max-w-[220px] truncate px-4 py-2 text-slate-500" title={r.direccion}>{r.direccion || '—'}</td>
-                <td className="px-4 py-2 text-slate-500">{fecha(r.fecha_apertura)}</td>
-                <td className="px-4 py-2 font-semibold text-slate-700">{r.edad.toLocaleString('es-CO')} d</td>
+              <tr key={r.id}>
+                <td><span className={'badge ' + badge[r.sem]}>{SEMAFORO_LABEL[r.sem]}</span></td>
+                <td className="font-semibold text-[var(--text)]">{r.numero}</td>
+                <td className="relative">
+                  <button onClick={() => setMenu(menu === r.id ? null : r.id)} className="max-w-[220px] truncate text-left font-medium text-[var(--accent)] hover:underline" title={r.cliente}>
+                    {r.cliente}
+                  </button>
+                  {menu === r.id && (
+                    <div className="absolute left-3 top-full z-30 mt-1 w-52 overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-[var(--shadow-md)]" onMouseLeave={() => setMenu(null)}>
+                      <button onClick={() => { onCliente?.(r.cliente); setMenu(null) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-[var(--text)] hover:bg-[var(--surface-2)]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3z" /></svg>
+                        Ver solo este cliente
+                      </button>
+                      <a href={`https://etb.lightning.force.com`} target="_blank" rel="noreferrer" className="flex w-full items-center gap-2 border-t border-[var(--border)] px-3 py-2 text-left text-[13px] text-[var(--text-2)] hover:bg-[var(--surface-2)]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" /></svg>
+                        Abrir en Salesforce
+                      </a>
+                    </div>
+                  )}
+                </td>
+                <td><span className="badge badge-neutral">{r.estado || '—'}</span></td>
+                <td className="max-w-[240px] truncate text-[var(--text-2)]" title={r.tipologia}>{r.tipologia || '—'}</td>
+                <td>
+                  <span className="inline-flex items-center gap-1.5 text-[var(--text-2)]">
+                    <span className="h-2 w-2 rounded-full" style={{ background: (CAT_COLOR as any)[r.categoria] || '#b0c0d0' }} />{r.categoria}
+                  </span>
+                </td>
+                <td className="text-[var(--text-2)]">{r.proceso || '—'}</td>
+                <td className="text-[var(--text-2)]">{r.origen || '—'}</td>
+                <td className="tnum whitespace-nowrap text-[var(--muted)]">{fecha(r.fecha_apertura)}</td>
+                <td className="tnum font-semibold text-[var(--text)]">{r.edad.toLocaleString('es-CO')} d</td>
+                <td className="text-[var(--text-2)]">{r.ciudad || '—'}</td>
+                <td className="max-w-[200px] truncate text-[var(--muted)]" title={r.direccion}>{r.direccion || '—'}</td>
+                <td className="tnum text-[var(--text-2)]">{r.id_servicio || '—'}</td>
+                <td className="tnum text-[var(--text-2)]">{r.id_legado || '—'}</td>
               </tr>
             ))}
-            {!visibles.length && <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">Sin casos para este filtro.</td></tr>}
+            {!visibles.length && <tr><td colSpan={COLS.length} className="py-10 text-center text-[var(--muted)]">Sin casos para este filtro.</td></tr>}
           </tbody>
         </table>
       </div>
