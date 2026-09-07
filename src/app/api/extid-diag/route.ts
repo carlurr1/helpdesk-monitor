@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase'
+import { sfLogin, sfQuery, SF_CFG } from '@/lib/salesforce'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -46,15 +47,33 @@ async function run(req: Request) {
     }
     const setMatch = new Set(clientesMatch.map((c) => c.nit))
 
-    // Clientes cuyo NIT parece un identificador externo (más de 10 dígitos)
-    const largos = await sb.from('clientes').select('nit, segmento', { count: 'exact' })
-      .filter('nit', 'gte', '10000000000').limit(10)
+    // ── Chequeo EN VIVO contra Salesforce: ¿devuelve Account.External_Id__c? ──
+    const extField = SF_CFG.EXTID_FIELD // p.ej. Account.External_Id__c
+    let sfLive: any = { intentado: false }
+    try {
+      const s = await sfLogin()
+      // Casos cuya cuenta TIENE identificador externo (si hay, SF lo trae bien).
+      const soql = `SELECT CaseNumber, AccountNumber__c, Account.Name, ${extField}
+        FROM Case WHERE ${extField} != null LIMIT 10`
+      const q = await sfQuery(s, soql)
+      const parts = extField.split('.')
+      sfLive = {
+        intentado: true, campo: extField, conValor: q.totalSize ?? (q.records || []).length,
+        ejemplos: (q.records || []).slice(0, 8).map((r: any) => ({
+          caso: r.CaseNumber, nit: r.AccountNumber__c,
+          cuenta: r.Account && r.Account.Name,
+          extId: parts.reduce((o: any, k: string) => (o ? o[k] : null), r),
+        })),
+      }
+    } catch (e: any) {
+      sfLive = { intentado: true, campo: extField, error: e.message }
+    }
 
     return NextResponse.json({
+      sfLive,
       ok: true,
       paso: (conExt.count ?? 0) === 0 ? 'CASOS_SIN_NIT_EXT' : (clientesMatch.length === 0 ? 'BASE_SIN_EXTIDS' : 'OK_REVISAR'),
       casos: { total: totalCasos.count ?? 0, conNitExt: conExt.count ?? 0 },
-      clientesConIdLargo: largos.count ?? 0,
       ejemplos: (muestraCasos.data ?? []).map((r: any) => ({
         caso: r.numero, nit: r.nit, nit_ext: r.nit_ext, segmento: r.segmento,
         cuenta: r.cuenta_nombre, extIdEnBase: setMatch.has(r.nit_ext),

@@ -164,7 +164,14 @@ export default function Admin() {
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || 'Error')
       if (j.paso === 'FALTA_COLUMNA') { push('❌ ' + j.detalle); return }
-      push(`Casos: ${Number(j.casos.total).toLocaleString('es-CO')} · con nit_ext: ${Number(j.casos.conNitExt).toLocaleString('es-CO')} · clientes con id largo: ${j.clientesConIdLargo}`)
+      push(`Casos: ${Number(j.casos.total).toLocaleString('es-CO')} · con nit_ext: ${Number(j.casos.conNitExt).toLocaleString('es-CO')}`)
+      if (j.sfLive) {
+        if (j.sfLive.error) push(`SF EN VIVO (${j.sfLive.campo}): ❌ ${j.sfLive.error}`)
+        else {
+          push(`SF EN VIVO (${j.sfLive.campo}): casos con ese campo lleno = ${j.sfLive.conValor}`)
+          ;(j.sfLive.ejemplos || []).forEach((e: any) => push(`  ${e.caso} | nit=${e.nit} | extId=${e.extId || '∅'} | ${e.cuenta || ''}`))
+        }
+      }
       j.ejemplos.slice(0, 10).forEach((e: any) => {
         push(`  ${e.caso} | nit=${e.nit} | ext=${e.nit_ext || '∅'} | seg=${e.segmento} | ¿ext en base? ${e.extIdEnBase ? '✅' : '❌'}`)
       })
