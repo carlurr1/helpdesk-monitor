@@ -17,7 +17,7 @@ const MapaCasos = dynamic(() => import('./MapaCasos'), {
   loading: () => <div className="card grid h-[520px] place-items-center text-sm text-[var(--muted)]">Cargando mapa…</div>,
 })
 
-const REFRESH_MS = 60000
+const REFRESH_MS = 5 * 60 * 1000 // auto-refresco cada 5 minutos
 type Tab = 'operacion' | 'ejecutivo'
 
 function Section({ children }: { children: React.ReactNode }) {
