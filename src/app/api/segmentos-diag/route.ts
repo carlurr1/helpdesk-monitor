@@ -20,7 +20,7 @@ async function contarPor(sb: any, tabla: string, campo: string): Promise<Record<
   const out: Record<string, number> = {}
   const PAG = 1000
   for (let desde = 0; ; desde += PAG) {
-    const { data, error } = await sb.from(tabla).select(campo).range(desde, desde + PAG - 1)
+    const { data, error } = await sb.from(tabla).select(campo).order(campo, { ascending: true }).range(desde, desde + PAG - 1)
     if (error) throw new Error(`${tabla}.${campo}: ${error.message}`)
     if (!data?.length) break
     for (const r of data) {

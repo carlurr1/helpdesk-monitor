@@ -136,7 +136,10 @@ async function traerFilas(sb: SupabaseClient, segmento: string | null, cols: str
 
   const paginas = Math.ceil(total / PAG)
   const consultas = Array.from({ length: paginas }, (_, p) => {
-    let q = sb.from('casos_segmentados').select(cols).range(p * PAG, p * PAG + PAG - 1)
+    // ORDER BY id es CLAVE: sin orden fijo, las páginas paralelas se solapan y
+    // se pierden filas (se veían pocos clientes por segmento). Con orden estable
+    // cada range() cubre filas distintas.
+    let q = sb.from('casos_segmentados').select(cols).order('id', { ascending: true }).range(p * PAG, p * PAG + PAG - 1)
     if (segmento) q = q.eq('segmento', segmento)
     return q
   })
