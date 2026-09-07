@@ -120,7 +120,9 @@ export async function GET(req: Request) {
       abiertos, abiertosTotal: abiertosAll.length,
       estados, clientes, cliente,
       _debug: {
-        ver: 'seq-v5',
+        ver: 'seq-v6',
+        colsPresentes: extra,
+        muestraExtra: rows[0] ? { proceso: rows[0].proceso, origen: rows[0].origen, direccion: rows[0].direccion, id_servicio: rows[0].id_servicio, id_legado: rows[0].id_legado } : null,
         rowsTraidas: rows.length,
         idsUnicos: new Set(rows.map((r: any) => r.id)).size,
         segTally: rows.reduce((m: any, r: any) => { const s = r.segmento || '∅'; m[s] = (m[s] || 0) + 1; return m }, {} as Record<string, number>),

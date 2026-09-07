@@ -213,7 +213,8 @@ export default function Admin() {
       if (!j.ok) throw new Error(j.error || 'Error')
       const d = j._debug || {}
       push(`${seg} [${d.ver || 'viejo'}]: rows=${d.rowsTraidas} · idsUnicos=${d.idsUnicos} · abiertos=${d.casosAbiertos} · clientesAbiertos=${d.clientesAbiertos}`)
-      push(`  segTally=${JSON.stringify(d.segTally)}`)
+      push(`  columnas presentes: ${(d.colsPresentes || []).join(', ') || '(ninguna extra)'}`)
+      if (d.muestraExtra) push(`  muestra: proceso=${d.muestraExtra.proceso ?? '∅'} · origen=${d.muestraExtra.origen ?? '∅'} · dir=${d.muestraExtra.direccion ?? '∅'} · idServ=${d.muestraExtra.id_servicio ?? '∅'} · idLeg=${d.muestraExtra.id_legado ?? '∅'}`)
       push(`  KPI abiertos=${j.op?.kpis?.abiertos} · porSegmento[${seg}]=${j.porSegmento?.[seg]}`)
     } catch (e: any) {
       push('❌ ' + (e?.message || e))
