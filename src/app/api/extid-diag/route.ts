@@ -72,16 +72,23 @@ async function run(req: Request) {
       sfLive = { intentado: true, campo: extField, error: e.message }
     }
 
+    // ¿SF trae identificadores reales (más de 3 dígitos, no "1" de prueba)?
+    const sfTraeReal = (sfLive.ejemplos || []).some((e: any) => String(e.extId ?? '').replace(/\D/g, '').length > 3)
+    const paso =
+      (conExt.count ?? 0) > 0 ? (clientesMatch.length === 0 ? 'BASE_SIN_EXTIDS' : 'OK_REVISAR')
+      : sfTraeReal ? 'FALTA_RESYNC' : 'CASOS_SIN_NIT_EXT'
+
     return NextResponse.json({
       sfLive,
       ok: true,
-      paso: (conExt.count ?? 0) === 0 ? 'CASOS_SIN_NIT_EXT' : (clientesMatch.length === 0 ? 'BASE_SIN_EXTIDS' : 'OK_REVISAR'),
+      paso,
       casos: { total: totalCasos.count ?? 0, conNitExt: conExt.count ?? 0 },
       ejemplos: (muestraCasos.data ?? []).map((r: any) => ({
         caso: r.numero, nit: r.nit, nit_ext: r.nit_ext, segmento: r.segmento,
         cuenta: r.cuenta_nombre, extIdEnBase: setMatch.has(r.nit_ext),
       })),
       pistas: {
+        FALTA_RESYNC: 'Salesforce SÍ trae el identificador externo, pero los casos guardados son de un sync viejo. Dale al botón "Sincronizar casos ahora" (NO "Cargar clientes") y vuelve a revisar.',
         CASOS_SIN_NIT_EXT: 'Los casos no traen identificador externo. ¿Sincronizaste DESPUÉS del último deploy? ¿La cuenta del caso tiene External_Id__c en SF?',
         BASE_SIN_EXTIDS: 'Los casos SÍ traen nit_ext, pero esos valores no están en la base de clientes. Sube la base NUEVA con el identificador externo en la columna ID_IDENTIFICACION.',
         OK_REVISAR: 'Hay match. Si aún ves mal el segmento, revisa que la vista tenga los dos joins (cle por nit_ext, cln por nit).',
