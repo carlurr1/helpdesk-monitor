@@ -202,6 +202,25 @@ export default function Admin() {
     }
   }
 
+  async function debugTablero() {
+    const seg = window.prompt('¿Qué segmento? (Todos, Distrito, Élite, Premium, Mayoristas, Silver, Gold)', 'Élite')
+    if (!seg) return
+    setBusy(true)
+    push(`Debug tablero para ${seg}…`)
+    try {
+      const res = await fetch(`/api/casos?segmento=${encodeURIComponent(seg)}`)
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      const d = j._debug || {}
+      push(`${seg}: rows=${d.rowsTraidas} · abiertos=${d.casosAbiertos} · clientesAbiertos=${d.clientesAbiertos} · distintos=${d.clientesDistintos}`)
+      push(`  KPI abiertos=${j.op?.kpis?.abiertos} · clientesAbiertos=${j.op?.kpis?.clientesAbiertos} · porSegmento[${seg}]=${j.porSegmento?.[seg]}`)
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -301,6 +320,13 @@ export default function Admin() {
             className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
           >
             Clientes por segmento
+          </button>
+          <button
+            onClick={debugTablero} disabled={busy}
+            title="Muestra los números exactos que calcula la API del tablero para un segmento"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Debug tablero
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
