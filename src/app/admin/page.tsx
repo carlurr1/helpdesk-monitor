@@ -168,7 +168,7 @@ export default function Admin() {
       if (j.sfLive) {
         if (j.sfLive.error) push(`SF EN VIVO (${j.sfLive.campo}): ❌ ${j.sfLive.error}`)
         else {
-          push(`SF EN VIVO (${j.sfLive.campo}): casos con ese campo lleno = ${j.sfLive.conValor}`)
+          push(`SF EN VIVO ${j.sfLive.campo} · NIT sondeado ${j.sfLive.nitSondeado}: ${j.sfLive.casosDelNit} casos`)
           ;(j.sfLive.ejemplos || []).forEach((e: any) => push(`  ${e.caso} | nit=${e.nit} | extId=${e.extId || '∅'} | ${e.cuenta || ''}`))
         }
       }
