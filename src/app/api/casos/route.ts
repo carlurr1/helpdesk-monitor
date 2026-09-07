@@ -103,8 +103,10 @@ export async function GET(req: Request) {
       abiertos, abiertosTotal: abiertosAll.length,
       estados,
       _debug: {
-        ver: 'eq-first-v3',
+        ver: 'eq-first-v4',
         rowsTraidas: rows.length,
+        idsUnicos: new Set(rows.map((r: any) => r.id)).size,
+        segTally: rows.reduce((m: any, r: any) => { const s = r.segmento || '∅'; m[s] = (m[s] || 0) + 1; return m }, {} as Record<string, number>),
         rowsFiltradas: rowsFiltradas.length,
         casosAbiertos: abiertosAll.length,
         clientesAbiertos: op.kpis.clientesAbiertos,

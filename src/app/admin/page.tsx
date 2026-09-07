@@ -212,8 +212,9 @@ export default function Admin() {
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || 'Error')
       const d = j._debug || {}
-      push(`${seg} [${d.ver || 'viejo'}]: rows=${d.rowsTraidas} · abiertos=${d.casosAbiertos} · clientesAbiertos=${d.clientesAbiertos} · distintos=${d.clientesDistintos}`)
-      push(`  KPI abiertos=${j.op?.kpis?.abiertos} · clientesAbiertos=${j.op?.kpis?.clientesAbiertos} · porSegmento[${seg}]=${j.porSegmento?.[seg]}`)
+      push(`${seg} [${d.ver || 'viejo'}]: rows=${d.rowsTraidas} · idsUnicos=${d.idsUnicos} · abiertos=${d.casosAbiertos} · clientesAbiertos=${d.clientesAbiertos}`)
+      push(`  segTally=${JSON.stringify(d.segTally)}`)
+      push(`  KPI abiertos=${j.op?.kpis?.abiertos} · porSegmento[${seg}]=${j.porSegmento?.[seg]}`)
     } catch (e: any) {
       push('❌ ' + (e?.message || e))
     } finally {
