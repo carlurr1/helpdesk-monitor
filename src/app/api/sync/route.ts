@@ -9,7 +9,11 @@ export const maxDuration = 300   // el sync puede tardar; requiere plan Vercel P
 function autorizado(req: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false   // sin secreto configurado no se ejecuta (nunca abierto)
-  return (req.headers.get('authorization') || '') === `Bearer ${secret}`
+  // Acepta el secreto por header (Authorization: Bearer …) o por URL (?key=…),
+  // para simplificar la config de un programador externo (cron-job.org).
+  if ((req.headers.get('authorization') || '') === `Bearer ${secret}`) return true
+  const key = new URL(req.url).searchParams.get('key')
+  return key === secret
 }
 
 async function run(req: Request) {
@@ -17,8 +21,10 @@ async function run(req: Request) {
     return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 })
   }
   try {
-    const { count, geocodificados, ubicados } = await syncCasos()
-    return NextResponse.json({ ok: true, count, geocodificados, ubicados, at: new Date().toISOString() })
+    // ?horas=N → sync incremental (solo casos modificados en las últimas N horas).
+    const horas = parseInt(new URL(req.url).searchParams.get('horas') || '0', 10) || undefined
+    const { count, geocodificados, ubicados } = await syncCasos({ horas })
+    return NextResponse.json({ ok: true, count, geocodificados, ubicados, incremental: !!horas, at: new Date().toISOString() })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
   }
