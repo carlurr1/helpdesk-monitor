@@ -155,6 +155,27 @@ export default function Admin() {
     }
   }
 
+  async function diagnosticarExtId() {
+    if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
+    setBusy(true)
+    push('Analizando cruce por Identificador Externo…')
+    try {
+      const res = await fetch('/api/extid-diag', { headers: { Authorization: `Bearer ${secret}` } })
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      if (j.paso === 'FALTA_COLUMNA') { push('❌ ' + j.detalle); return }
+      push(`Casos: ${Number(j.casos.total).toLocaleString('es-CO')} · con nit_ext: ${Number(j.casos.conNitExt).toLocaleString('es-CO')} · clientes con id largo: ${j.clientesConIdLargo}`)
+      j.ejemplos.slice(0, 10).forEach((e: any) => {
+        push(`  ${e.caso} | nit=${e.nit} | ext=${e.nit_ext || '∅'} | seg=${e.segmento} | ¿ext en base? ${e.extIdEnBase ? '✅' : '❌'}`)
+      })
+      push('▶ ' + (j.pistas[j.paso] || j.paso))
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -240,6 +261,13 @@ export default function Admin() {
             className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
           >
             Diagnóstico de segmentos
+          </button>
+          <button
+            onClick={diagnosticarExtId} disabled={busy}
+            title="Revisa el cruce por Identificador Externo (Distrito/Élite)"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Diagnóstico Id externo
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
