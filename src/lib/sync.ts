@@ -6,10 +6,17 @@ import { supabaseServer } from './supabase'
 
 export interface SyncResult { count: number; soql: string; geocodificados: number; ubicados: number }
 
-/** Trae los casos de SF (solo SOPORTE TECNICO, sin Cancelado, por NIT) y los upserta en Supabase. */
-export async function syncCasos(): Promise<SyncResult> {
+/**
+ * Trae los casos de SF (solo SOPORTE TECNICO, sin Cancelado, por NIT) y los
+ * upserta en Supabase. Con `horas` hace una sincronización INCREMENTAL: solo los
+ * casos modificados en esas últimas horas (rápido, para el cron frecuente).
+ */
+export async function syncCasos(opts?: { horas?: number }): Promise<SyncResult> {
   const login = await sfLogin()
-  const soql  = buildCasesSOQL()
+  const desdeISO = opts?.horas && opts.horas > 0
+    ? new Date(Date.now() - opts.horas * 3600_000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+    : undefined
+  const soql  = buildCasesSOQL(desdeISO)
   const records = await sfQueryAll(login, soql)
 
   const nitField  = SF_CFG.NIT_FIELD

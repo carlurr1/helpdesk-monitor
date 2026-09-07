@@ -139,7 +139,7 @@ export function looksLikeSalesforceId(v: unknown): boolean {
  * SOQL de casos con las 3 reglas: SOPORTE TECNICO, sin Cancelado, todo por NIT.
  * Trae abiertos + cerrados dentro de la ventana. El owner NO se filtra.
  */
-export function buildCasesSOQL(): string {
+export function buildCasesSOQL(desdeISO?: string): string {
   const nit  = sanitizeField(SF_CFG.NIT_FIELD)  || 'AccountNumber__c'
   const city = sanitizeField(SF_CFG.CITY_FIELD) || 'Ciudad_Instalacion__c'
   const cityName = sanitizeField(SF_CFG.CITY_NAME_FIELD) // ruta …__r.Name (nombre legible)
@@ -161,11 +161,16 @@ export function buildCasesSOQL(): string {
     'Proceso__c', 'Origin', 'IDServicio__c', 'Id_Sistema_Legado__c',
   ].join(', ')
 
+  // Incremental: solo casos modificados desde `desdeISO` (rápido, para el cron
+  // frecuente). Completo: abiertos + cerrados dentro de la ventana de días.
+  const ventana = desdeISO
+    ? `AND LastModifiedDate >= ${desdeISO}`
+    : `AND (IsClosed = false OR ClosedDate = LAST_N_DAYS:${days})`
   return `SELECT ${cols}
     FROM Case
     WHERE RecordType.Name = '${SF_CFG.RECORD_TYPE.replace(/'/g, "\\'")}'
       AND Status != 'Cancelado'
-      AND (IsClosed = false OR ClosedDate = LAST_N_DAYS:${days})
+      ${ventana}
     ORDER BY CreatedDate DESC`
 }
 
