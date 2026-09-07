@@ -134,8 +134,12 @@ async function columnaExiste(sb: SupabaseClient, col: string): Promise<boolean> 
 
 /** Trae todas las filas (opcionalmente de un segmento) paginando en paralelo. */
 async function traerFilas(sb: SupabaseClient, segmento: string | null, cols: string): Promise<any[]> {
-  let head = sb.from('casos_segmentados').select('id', { count: 'exact', head: true })
-  if (segmento) head = head.eq('segmento', segmento)
+  // El filtro por segmento se aplica ANTES de order()/range(). Aplicarlo después
+  // rompe el filtro cuando el valor tiene acentos (p.ej. "Élite") y traía filas
+  // de otros segmentos. seg-clientes ya lo hacía en este orden y funcionaba.
+  const head = segmento
+    ? sb.from('casos_segmentados').select('id', { count: 'exact', head: true }).eq('segmento', segmento)
+    : sb.from('casos_segmentados').select('id', { count: 'exact', head: true })
   const { count, error: ce } = await head
   if (ce) throw ce
   const total = count ?? 0
@@ -143,15 +147,15 @@ async function traerFilas(sb: SupabaseClient, segmento: string | null, cols: str
 
   const paginas = Math.ceil(total / PAG)
   const consultas = Array.from({ length: paginas }, (_, p) => {
-    // ORDER BY id es CLAVE: sin orden fijo, las páginas paralelas se solapan y
-    // se pierden filas (se veían pocos clientes por segmento). Con orden estable
-    // cada range() cubre filas distintas.
-    let q = sb.from('casos_segmentados').select(cols).order('id', { ascending: true }).range(p * PAG, p * PAG + PAG - 1)
-    if (segmento) q = q.eq('segmento', segmento)
-    return q
+    const sel = segmento
+      ? sb.from('casos_segmentados').select(cols).eq('segmento', segmento)
+      : sb.from('casos_segmentados').select(cols)
+    // ORDER BY id: sin orden fijo, las páginas paralelas se solapan y se pierden filas.
+    return sel.order('id', { ascending: true }).range(p * PAG, p * PAG + PAG - 1)
   })
   const results = await Promise.all(consultas)
   const rows: any[] = []
   for (const { data, error } of results) { if (error) throw error; rows.push(...(data ?? [])) }
-  return rows
+  // Red de seguridad: garantiza el segmento aunque el fetch trajera de más.
+  return segmento ? rows.filter((r) => r.segmento === segmento) : rows
 }
