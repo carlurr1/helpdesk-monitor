@@ -34,6 +34,7 @@ function cfg_() {
     CITY_FIELD: p.getProperty('SF_CITY_FIELD') || 'Ciudad_Instalacion__c',
     CITY_NAME_FIELD: p.getProperty('SF_CITY_NAME_FIELD') || 'Ciudad_Instalacion__r.Name',
     ADDRESS_FIELD: p.getProperty('SF_ADDRESS_FIELD') || 'Direccion_Instalacion__c',
+    EXTID_FIELD: p.getProperty('SF_EXTID_FIELD') || '',  // ej. Account.Identificador_Externo__c
     RECORD_TYPE: p.getProperty('SF_RECORD_TYPE') || 'SOPORTE TECNICO',
     WINDOW_DAYS: parseInt(p.getProperty('SF_WINDOW_DAYS') || '60', 10)
   };
@@ -129,6 +130,7 @@ function buildSOQL_() {
     'RecordType.Name', 'Account.Name', san(c.NIT_FIELD), san(c.CITY_FIELD)];
   if (san(c.CITY_NAME_FIELD)) cols.push(san(c.CITY_NAME_FIELD));
   if (san(c.ADDRESS_FIELD)) cols.push(san(c.ADDRESS_FIELD));
+  if (san(c.EXTID_FIELD)) cols.push(san(c.EXTID_FIELD));
   cols = cols.concat(['Tipologia__c', 'TipoCaso__c', 'Categoria_legado__c', 'FechaInicioAfectacion__c', 'FechaFinAfectacion__c']);
   return 'SELECT ' + cols.filter(String).join(', ') +
     " FROM Case WHERE RecordType.Name = '" + c.RECORD_TYPE.replace(/'/g, "\\'") + "'" +
@@ -227,6 +229,13 @@ function address_(rec) {
   if (v == null || looksLikeId_(v)) return '';
   return String(v).trim();
 }
+function extId_(rec) {
+  var c = cfg_(); if (!c.EXTID_FIELD) return '';
+  var v = c.EXTID_FIELD.indexOf('.') >= 0
+    ? c.EXTID_FIELD.split('.').reduce(function (o, k) { return o ? o[k] : null; }, rec)
+    : rec[c.EXTID_FIELD];
+  return v == null ? '' : String(v).trim();
+}
 /** coordenadas → localidad/ciudad en texto → catálogo → centro Bogotá. */
 function geoDeCaso_(ciudad, direccion) {
   var coord = extraerCoord_(direccion) || extraerCoord_(ciudad);
@@ -268,7 +277,9 @@ function traerCasos_() {
     var dir = address_(r);
     var geo = geoDeCaso_(ciudad, dir);
     var nit = nit_(r[c.NIT_FIELD]);
-    var cl = base[nit];
+    var ext = nit_(extId_(r));
+    // Cruce: 1º por Identificador Externo (Distrito/Élite comparten NIT), 2º por NIT.
+    var cl = (ext && base[ext]) || base[nit];
     return {
       numero: r.CaseNumber || '', nit: nit,
       cuenta: (r.Account && r.Account.Name) || (cl && cl.nombre) || nit,

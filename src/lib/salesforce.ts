@@ -108,6 +108,11 @@ export const SF_CFG = {
   // con localidades/ciudades, como el script de GAS); no se guarda crudo.
   // Confirmado por diagnóstico: Direccion_Instalacion__c. Pon '' para desactivar.
   ADDRESS_FIELD: process.env.SF_ADDRESS_FIELD ?? 'Direccion_Instalacion__c',
+  // Identificador Externo (Distrito/Élite comparten NIT en Bogotá; este campo
+  // los diferencia, p.ej. 899999061013). Suele estar en la cuenta: se accede
+  // como 'Account.<ApiName>'. Vacío = desactivado. Úsalo para cruzar el segmento
+  // cuando el NIT no alcanza. Descúbrelo con /api/sf-fields?sobject=Account.
+  EXTID_FIELD: process.env.SF_EXTID_FIELD || '',
   WINDOW_DAYS: parseInt(process.env.SF_WINDOW_DAYS || '60', 10),
 }
 
@@ -144,11 +149,13 @@ export function buildCasesSOQL(): string {
   // Si la ciudad es un lookup, pedimos también el nombre por la relación para no
   // guardar el Id crudo en el mapa.
   const address = sanitizeField(SF_CFG.ADDRESS_FIELD) // dirección (solo para geolocalizar)
+  const extId = sanitizeField(SF_CFG.EXTID_FIELD)     // identificador externo (Distrito/Élite)
   const cols = [
     'Id', 'CaseNumber', 'Status', 'IsClosed', 'CreatedDate', 'ClosedDate',
     'RecordType.Name', 'Account.Name', nit, city,
     ...(cityName ? [cityName] : []),
     ...(address ? [address] : []),
+    ...(extId ? [extId] : []),
     'Tipologia__c', 'TipoCaso__c', 'Categoria_legado__c',
     'FechaInicioAfectacion__c', 'FechaFinAfectacion__c',
   ].join(', ')
@@ -203,6 +210,16 @@ export function addressFromRecord(record: any): string {
     : record?.[field]
   if (val == null || looksLikeSalesforceId(val)) return ''
   return String(val).trim()
+}
+
+/** Lee el Identificador Externo del caso (soporta ruta de relación Account.X). */
+export function extIdFromRecord(record: any): string {
+  const field = SF_CFG.EXTID_FIELD
+  if (!field) return ''
+  const val = field.includes('.')
+    ? field.split('.').reduce((o: any, k: string) => o?.[k], record)
+    : record?.[field]
+  return val == null ? '' : String(val).trim()
 }
 
 export function fmtLocal(d: string | Date | null): string {
