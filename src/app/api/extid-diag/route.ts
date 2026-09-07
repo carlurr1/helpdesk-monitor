@@ -49,17 +49,20 @@ async function run(req: Request) {
 
     // ── Chequeo EN VIVO contra Salesforce: ¿devuelve Account.External_Id__c? ──
     const extField = SF_CFG.EXTID_FIELD // p.ej. Account.External_Id__c
+    // NIT a sondear (por defecto el compartido del distrito de Bogotá).
+    const nitProbe = new URL(req.url).searchParams.get('nit') || '899999061'
     let sfLive: any = { intentado: false }
     try {
       const s = await sfLogin()
-      // Casos cuya cuenta TIENE identificador externo (si hay, SF lo trae bien).
+      // Casos de ese NIT (el distrital) para ver su identificador externo real.
       const soql = `SELECT CaseNumber, AccountNumber__c, Account.Name, ${extField}
-        FROM Case WHERE ${extField} != null LIMIT 10`
+        FROM Case WHERE ${SF_CFG.NIT_FIELD} = '${nitProbe.replace(/'/g, '')}'
+        ORDER BY CreatedDate DESC LIMIT 12`
       const q = await sfQuery(s, soql)
       const parts = extField.split('.')
       sfLive = {
-        intentado: true, campo: extField, conValor: q.totalSize ?? (q.records || []).length,
-        ejemplos: (q.records || []).slice(0, 8).map((r: any) => ({
+        intentado: true, campo: extField, nitSondeado: nitProbe, casosDelNit: q.totalSize ?? (q.records || []).length,
+        ejemplos: (q.records || []).slice(0, 12).map((r: any) => ({
           caso: r.CaseNumber, nit: r.AccountNumber__c,
           cuenta: r.Account && r.Account.Name,
           extId: parts.reduce((o: any, k: string) => (o ? o[k] : null), r),
