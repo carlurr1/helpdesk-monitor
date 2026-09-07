@@ -77,7 +77,7 @@ export default function Dashboard() {
 
       <div ref={scroller} className="flex-1 overflow-y-auto">
         <Topbar
-          segmento={segmento} tab={tab} updated={updated} cliente={cliente}
+          segmento={segmento} tab={tab} updated={updated} sincronizado={data?.sincronizado} cliente={cliente}
           onClearCliente={() => setCliente('')} onRefresh={() => cargar(segmento, cats, estado, cliente)}
           onMenu={() => setNavOpen(true)}
           right={<ExportExcel segmento={segmento} cats={cats} estado={estado} cliente={cliente} />}

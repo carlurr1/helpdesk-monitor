@@ -21,6 +21,12 @@ const COLS_BASE = [
 
 const SEGMENTOS_BOGOTA = ['Distrito', 'Élite']
 
+// Cuentas a excluir del monitor (comparten NIT con la cuenta real). El token
+// "ENTERATE" identifica a "ETB EnterateConETB".
+function esExcluida(nombre: unknown): boolean {
+  return /ENTERATE/i.test(String(nombre ?? ''))
+}
+
 // GET /api/casos?segmento=&cats=Incidente,Evento&estado=Abierto[&export=1]
 // Calcula TODO en el servidor (KPIs, Operativo, Ejecutivo, puntos del mapa y
 // tabla de abiertos) y devuelve JSON compacto — no manda 28k filas crudas.
@@ -46,6 +52,10 @@ export async function GET(req: Request) {
     // Rellena con null las columnas que no existen para una forma uniforme.
     const faltantes = OPCIONALES.filter((c) => !extra.includes(c))
     if (faltantes.length) rows = rows.map((r) => { const o: any = { ...r }; faltantes.forEach((c) => { if (o[c] === undefined) o[c] = null }); return o })
+
+    // Cuentas excluidas del monitor (comparten NIT con la cuenta real).
+    // "ETB EnterateConETB" no debe contar como ETB.
+    rows = rows.filter((r: any) => !esExcluida(r.cuenta_nombre))
 
     // Filtros (categoría/estado/cliente) del lado servidor. El fallback debe
     // coincidir con el de computeOperativo ('Sin cliente') para que al hacer
@@ -105,14 +115,18 @@ export async function GET(req: Request) {
     // "Casos abiertos"). Se talla: si es "Todos", desde las ya traídas; si es un
     // segmento, con un barrido liviano de `segmento, abierto`.
     const porSegmento: Record<string, number> = {}
-    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'segmento, abierto', null) : rows
+    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'segmento, abierto, cuenta_nombre', null) : rows
     const tally: Record<string, number> = {}
     for (const r of filasParaTally as any[]) {
-      if (!r.abierto) continue
+      if (!r.abierto || esExcluida(r.cuenta_nombre)) continue
       const s = String(r.segmento ?? '').normalize('NFC')
       tally[s] = (tally[s] || 0) + 1
     }
     for (const s of SEGMENTOS) porSegmento[s] = tally[s.normalize('NFC')] || 0
+
+    // Última sincronización con Salesforce (para distinguir de la relectura).
+    const { data: syncRow } = await sb.from('casos').select('sincronizado_en').order('sincronizado_en', { ascending: false }).limit(1)
+    const sincronizado = (syncRow && syncRow[0]?.sincronizado_en) || null
 
     return NextResponse.json({
       ok: true,
@@ -121,7 +135,7 @@ export async function GET(req: Request) {
       updated: now.toISOString(),
       kpis, porSegmento, op, ej, puntos, dist,
       abiertos, abiertosTotal: abiertosAll.length,
-      estados, clientes, cliente,
+      estados, clientes, cliente, sincronizado,
       _debug: {
         ver: 'seq-v6',
         colsPresentes: extra,

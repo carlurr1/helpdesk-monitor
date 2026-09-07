@@ -1,11 +1,22 @@
 'use client'
 
+function haceCuanto(iso?: string | null): string {
+  if (!iso) return '—'
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (min < 1) return 'hace instantes'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `hace ${h} h`
+  return `hace ${Math.floor(h / 24)} d`
+}
+
 export function Topbar({
-  segmento, tab, updated, cliente, onClearCliente, onRefresh, onMenu, right,
+  segmento, tab, updated, sincronizado, cliente, onClearCliente, onRefresh, onMenu, right,
 }: {
   segmento: string
   tab: 'operacion' | 'ejecutivo'
   updated: Date | null
+  sincronizado?: string | null
   cliente: string
   onClearCliente: () => void
   onRefresh: () => void
@@ -41,8 +52,9 @@ export function Topbar({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="hidden text-[11px] text-[var(--muted)] sm:inline">
-            {updated ? `Actualizado ${updated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` : 'Cargando…'}
+          <span className="hidden text-right text-[11px] leading-tight text-[var(--muted)] sm:block" title="La sincronización trae casos nuevos desde Salesforce; la relectura solo actualiza la pantalla.">
+            <span className="block font-semibold text-[var(--text-2)]">Salesforce {haceCuanto(sincronizado)}</span>
+            <span className="block">Pantalla {updated ? updated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '…'}</span>
           </span>
           {right}
           <button onClick={onRefresh} className="btn btn-sm" title="Actualizar ahora">
