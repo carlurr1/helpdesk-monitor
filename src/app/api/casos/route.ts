@@ -103,6 +103,7 @@ export async function GET(req: Request) {
       abiertos, abiertosTotal: abiertosAll.length,
       estados,
       _debug: {
+        ver: 'eq-first-v3',
         rowsTraidas: rows.length,
         rowsFiltradas: rowsFiltradas.length,
         casosAbiertos: abiertosAll.length,
@@ -157,5 +158,8 @@ async function traerFilas(sb: SupabaseClient, segmento: string | null, cols: str
   const rows: any[] = []
   for (const { data, error } of results) { if (error) throw error; rows.push(...(data ?? [])) }
   // Red de seguridad: garantiza el segmento aunque el fetch trajera de más.
-  return segmento ? rows.filter((r) => r.segmento === segmento) : rows
+  // Normaliza el acento (NFC) por si el valor de la URL y el de la BD difieren.
+  if (!segmento) return rows
+  const objetivo = segmento.normalize('NFC')
+  return rows.filter((r) => String(r.segmento ?? '').normalize('NFC') === objetivo)
 }
