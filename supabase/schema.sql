@@ -42,6 +42,10 @@ create table if not exists casos (
   fin_afectacion    timestamptz,        -- FechaFinAfectacion__c
   ciudad            text,               -- de SF → mapa nacional
   direccion         text,               -- Direccion_Instalacion__c (para ubicar en el navegador)
+  proceso           text,               -- Proceso__c
+  origen            text,               -- Origin (Origen del caso)
+  id_servicio       text,               -- IDServicio__c
+  id_legado         text,               -- Id_Sistema_Legado__c (INC000…)
   departamento      text,
   lat               double precision,
   lng               double precision,

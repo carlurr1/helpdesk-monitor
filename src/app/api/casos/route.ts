@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase'
 import { SEGMENTOS } from '@/lib/segmentos'
-import { computeOperativo, computeEjecutivo, categoriaDe, edadDias, semaforo, type Categoria } from '@/lib/metrics'
+import { computeOperativo, computeEjecutivo, computeDistribuciones, categoriaDe, edadDias, semaforo, type Categoria } from '@/lib/metrics'
 import { geoDeCaso } from '@/lib/geo'
 import type { Caso } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -32,18 +32,27 @@ export async function GET(req: Request) {
   const estado = searchParams.get('estado') || ''
   const esExport = searchParams.get('export') === '1'
 
+  const cliente = searchParams.get('cliente') || ''
+
   try {
     const sb = supabaseServer()
-    const tieneDireccion = await columnaExiste(sb, 'direccion')
-    const cols = tieneDireccion ? [...COLS_BASE, 'direccion'] : COLS_BASE
+    // Columnas opcionales que pueden no existir aún (según ALTER corridos).
+    const OPCIONALES = ['direccion', 'proceso', 'origen', 'id_servicio', 'id_legado']
+    const presentes = await Promise.all(OPCIONALES.map((c) => columnaExiste(sb, c)))
+    const extra = OPCIONALES.filter((_, i) => presentes[i])
+    const cols = [...COLS_BASE, ...extra]
 
     let rows = await traerFilas(sb, filtrar ? (segmento as string) : null, cols.join(', '))
-    if (!tieneDireccion) rows = rows.map((r) => ({ ...r, direccion: null }))
+    // Rellena con null las columnas que no existen para una forma uniforme.
+    const faltantes = OPCIONALES.filter((c) => !extra.includes(c))
+    if (faltantes.length) rows = rows.map((r) => { const o: any = { ...r }; faltantes.forEach((c) => { if (o[c] === undefined) o[c] = null }); return o })
 
-    // Filtros (categoría/estado) del lado servidor.
+    // Filtros (categoría/estado/cliente) del lado servidor.
+    const clienteNombre = (r: Caso) => r.cuenta_nombre || r.cliente_base || r.nit || ''
     const rowsFiltradas: Caso[] = rows.filter((r: Caso) => {
       if (cats.length && !cats.includes(categoriaDe(r))) return false
       if (estado && r.estado !== estado) return false
+      if (cliente && clienteNombre(r) !== cliente) return false
       return true
     })
 
@@ -77,16 +86,18 @@ export async function GET(req: Request) {
     const puntos = [...grupos.values()]
     kpis.ubicados = puntos.reduce((a, p) => a + p.count, 0)
 
-    // Métricas Operativo / Ejecutivo (funciones puras, sobre lo filtrado).
+    // Métricas Operativo / Ejecutivo / distribuciones (funciones puras).
     const op = computeOperativo(rowsFiltradas, now)
     const ej = computeEjecutivo(rowsFiltradas, now)
+    const dist = computeDistribuciones(rowsFiltradas)
 
     // Tabla de abiertos (cap para no inflar el payload; el Excel usa ?export=1).
     const abiertosAll = rowsFiltradas.filter((r) => r.abierto)
     const abiertos = abiertosAll.slice(0, 500).map((r) => filaTabla(r, now))
 
-    // Estados disponibles para el filtro (de todo el segmento, sin filtrar).
+    // Estados y clientes disponibles (del segmento completo, sin filtrar por cats/estado/cliente).
     const estados = [...new Set(rows.map((r: Caso) => r.estado).filter(Boolean))].sort()
+    const clientes = [...new Set(rows.map(clienteNombre).filter(Boolean))].sort().slice(0, 400)
 
     // Desglose por segmento. El count exacto de la vista es poco confiable, así
     // que se tallan las filas: si es "Todos", desde las ya traídas; si es un
@@ -105,9 +116,9 @@ export async function GET(req: Request) {
       segmento: segmento || 'Todos',
       esBogota: filtrar && SEGMENTOS_BOGOTA.includes(segmento as string),
       updated: now.toISOString(),
-      kpis, porSegmento, op, ej, puntos,
+      kpis, porSegmento, op, ej, puntos, dist,
       abiertos, abiertosTotal: abiertosAll.length,
-      estados,
+      estados, clientes, cliente,
       _debug: {
         ver: 'seq-v5',
         rowsTraidas: rows.length,
@@ -130,7 +141,9 @@ function filaTabla(r: Caso, now: Date) {
     id: r.id, numero: r.numero,
     cliente: r.cuenta_nombre || r.cliente_base || r.nit || '—',
     estado: r.estado || '', categoria: categoriaDe(r), tipologia: r.tipologia || '',
+    proceso: r.proceso || '', origen: r.origen || '',
     ciudad: r.ciudad || '', direccion: r.direccion || '',
+    id_servicio: r.id_servicio || '', id_legado: r.id_legado || '',
     fecha_apertura: r.fecha_apertura, edad, sem: semaforo(edad),
   }
 }

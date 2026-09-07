@@ -47,6 +47,10 @@ export async function syncCasos(): Promise<SyncResult> {
       fin_afectacion:    c.FechaFinAfectacion__c ?? null,
       ciudad,
       direccion:         direccion || null,
+      proceso:           c.Proceso__c ?? null,
+      origen:            c.Origin ?? null,
+      id_servicio:       c.IDServicio__c ?? null,
+      id_legado:         c.Id_Sistema_Legado__c ?? null,
       departamento:      null as string | null,
       lat:               geo?.lat ?? null,
       lng:               geo?.lng ?? null,
@@ -76,7 +80,7 @@ export async function syncCasos(): Promise<SyncResult> {
       const lote = limpiar(casos.slice(i, i + 500))
       const { error } = await sb.from('casos').upsert(lote, { onConflict: 'id' })
       if (!error) break
-      const col = ['direccion', 'nit_ext'].find((c) => !omitir.has(c) && new RegExp(c, 'i').test(error.message))
+      const col = ['direccion', 'nit_ext', 'proceso', 'origen', 'id_servicio', 'id_legado'].find((c) => !omitir.has(c) && new RegExp(c, 'i').test(error.message))
       if (col && intentos++ < 3) { omitir.add(col); continue }
       throw new Error(`Supabase upsert (lote ${i}): ${error.message}`)
     }
