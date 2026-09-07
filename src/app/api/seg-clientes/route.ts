@@ -24,7 +24,7 @@ async function run(req: Request) {
     for (let desde = 0; ; desde += PAG) {
       const { data, error } = await sb.from('casos_segmentados')
         .select('cuenta_nombre, cliente_base, nit, nit_ext, abierto')
-        .eq('segmento', segmento).range(desde, desde + PAG - 1)
+        .eq('segmento', segmento).order('id', { ascending: true }).range(desde, desde + PAG - 1)
       if (error) throw error
       for (const r of (data ?? []) as any[]) {
         const cliente = r.cuenta_nombre || r.cliente_base || r.nit || 'Sin nombre'
