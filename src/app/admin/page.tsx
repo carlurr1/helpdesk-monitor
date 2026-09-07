@@ -183,6 +183,25 @@ export default function Admin() {
     }
   }
 
+  async function verClientesSeg() {
+    if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
+    const seg = window.prompt('¿Qué segmento? (Distrito, Élite, Premium, Mayoristas, Silver, Gold)', 'Élite')
+    if (!seg) return
+    setBusy(true)
+    push(`Clientes del segmento ${seg}…`)
+    try {
+      const res = await fetch(`/api/seg-clientes?segmento=${encodeURIComponent(seg)}`, { headers: { Authorization: `Bearer ${secret}` } })
+      const j = await res.json()
+      if (!j.ok) throw new Error(j.error || 'Error')
+      push(`${seg}: ${j.numClientes} clientes · ${Number(j.totalCasos).toLocaleString('es-CO')} casos · ${Number(j.abiertos).toLocaleString('es-CO')} abiertos`)
+      j.clientes.forEach((c: any) => push(`  ${c.cliente} — ${c.total} casos (${c.abiertos} abiertos) · id=${c.nit}`))
+    } catch (e: any) {
+      push('❌ ' + (e?.message || e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const chip = (ok: boolean) => (
     <span className={'rounded-full px-2 py-0.5 text-xs font-semibold ' + (ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
       {ok ? 'OK' : 'falta'}
@@ -275,6 +294,13 @@ export default function Admin() {
             className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
           >
             Diagnóstico Id externo
+          </button>
+          <button
+            onClick={verClientesSeg} disabled={busy}
+            title="Lista los clientes de un segmento con sus casos (total/abiertos)"
+            className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand/5 disabled:opacity-50"
+          >
+            Clientes por segmento
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Si la ciudad sale como un Id (ej. <code>a014000000QybGpAAJ</code>), usa <strong>Diagnóstico de campos SF</strong> para ver el nombre real del campo y su dirección.</p>
