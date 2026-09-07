@@ -1,5 +1,5 @@
 // Lógica de sync SF → Supabase.casos, reutilizable por el script y el endpoint.
-import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG, cityNameFromRecord, addressFromRecord } from './salesforce'
+import { sfLogin, sfQueryAll, buildCasesSOQL, SF_CFG, cityNameFromRecord, addressFromRecord, extIdFromRecord } from './salesforce'
 import { normalizarNit } from './segmentos'
 import { Geocoder } from './geocode'
 import { supabaseServer } from './supabase'
@@ -19,7 +19,7 @@ export async function syncCasos(): Promise<SyncResult> {
   const geocoder = new Geocoder()
   await geocoder.cargarCache()
 
-  const casos = []
+  const casos: Record<string, any>[] = []
   for (const c of records as any[]) {
     // Nombre legible de la ciudad (resuelve el lookup; nunca guarda el Id crudo).
     const ciudadSF = cityNameFromRecord(c)
@@ -34,6 +34,7 @@ export async function syncCasos(): Promise<SyncResult> {
       id:                c.Id,
       numero:            c.CaseNumber ?? '',
       nit:               normalizarNit(c[nitField]),
+      nit_ext:           normalizarNit(extIdFromRecord(c)) || null,
       cuenta_nombre:     c.Account?.Name ?? '',
       tipo_registro:     c.RecordType?.Name ?? '',
       estado:            c.Status ?? '',
@@ -56,20 +57,29 @@ export async function syncCasos(): Promise<SyncResult> {
   await geocoder.guardarCache()
 
   const sb = supabaseServer()
-  // Si la columna `direccion` aún no existe en la tabla, degradamos: reintentamos
-  // sin ese campo (el navegador igual ubica por ciudad). Recomendado: correr
+  // Columnas opcionales que pueden no existir aún en la tabla (según si se
+  // corrieron los ALTER). Si el upsert falla nombrando una, la quitamos de todas
+  // las filas y reintentamos, para que el sync nunca se rompa por esto.
   //   alter table casos add column if not exists direccion text;
-  let sinDireccion = false
+  //   alter table casos add column if not exists nit_ext text;
+  const omitir = new Set<string>()
+  const limpiar = (arr: Record<string, any>[]) =>
+    omitir.size ? arr.map((row) => {
+      const r: any = { ...row }
+      omitir.forEach((k) => delete r[k])
+      return r
+    }) : arr
+
   for (let i = 0; i < casos.length; i += 500) {
-    let lote = casos.slice(i, i + 500)
-    if (sinDireccion) lote = lote.map(({ direccion, ...resto }) => resto) as typeof lote
-    let { error } = await sb.from('casos').upsert(lote, { onConflict: 'id' })
-    if (error && !sinDireccion && /direccion/i.test(error.message)) {
-      sinDireccion = true
-      lote = lote.map(({ direccion, ...resto }) => resto) as typeof lote
-      ;({ error } = await sb.from('casos').upsert(lote, { onConflict: 'id' }))
+    let intentos = 0
+    while (true) {
+      const lote = limpiar(casos.slice(i, i + 500))
+      const { error } = await sb.from('casos').upsert(lote, { onConflict: 'id' })
+      if (!error) break
+      const col = ['direccion', 'nit_ext'].find((c) => !omitir.has(c) && new RegExp(c, 'i').test(error.message))
+      if (col && intentos++ < 3) { omitir.add(col); continue }
+      throw new Error(`Supabase upsert (lote ${i}): ${error.message}`)
     }
-    if (error) throw new Error(`Supabase upsert (lote ${i}): ${error.message}`)
   }
   const ubicados = casos.filter((c) => c.lat != null && c.lng != null).length
   return { count: casos.length, soql, geocodificados: geocoder.llamadasHechas, ubicados }

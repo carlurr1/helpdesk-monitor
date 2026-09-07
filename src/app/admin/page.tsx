@@ -93,18 +93,19 @@ export default function Admin() {
   async function diagnosticarCampos() {
     if (!secret) { push('⚠️ Escribe la clave de admin primero.'); return }
     setBusy(true)
-    push('Consultando nombres de campos en Salesforce (Case)…')
     try {
-      const res = await fetch('/api/sf-fields', { headers: { Authorization: `Bearer ${secret}` } })
-      const j = await res.json()
-      if (!j.ok) throw new Error(j.error || 'Error')
-      push(`Config actual → ciudad: ${j.configActual.SF_CITY_FIELD} · nombre: ${j.configActual.SF_CITY_NAME_FIELD || '(vacío)'} · dirección: ${j.configActual.SF_ADDRESS_FIELD}`)
-      if (!j.candidatos.length) push('No se hallaron campos con nombre de ciudad/dirección. Revisa permisos del usuario SF.')
-      j.candidatos.forEach((c: any) => {
-        const ref = c.type === 'reference' ? ` → lookup a ${(c.referenceTo || []).join('/')}; usa ${c.relationshipName}.Name` : ''
-        push(`  • ${c.name}  [${c.type}]  "${c.label}"${ref}`)
-      })
-      push('👉 Pásame estos nombres y configuro SF_CITY_FIELD / SF_CITY_NAME_FIELD / SF_ADDRESS_FIELD.')
+      for (const sobject of ['Case', 'Account']) {
+        push(`Campos de ${sobject} (ciudad/dirección/identificador)…`)
+        const res = await fetch(`/api/sf-fields?sobject=${sobject}`, { headers: { Authorization: `Bearer ${secret}` } })
+        const j = await res.json()
+        if (!j.ok) { push('❌ ' + (j.error || 'Error')); continue }
+        if (!j.candidatos.length) push('  (sin coincidencias)')
+        j.candidatos.forEach((c: any) => {
+          const ref = c.type === 'reference' ? ` → lookup a ${(c.referenceTo || []).join('/')}; usa ${c.relationshipName}.Name` : ''
+          push(`  • ${c.name}  [${c.type}]  "${c.label}"${ref}`)
+        })
+      }
+      push('👉 Para Distrito/Élite busca el "Identificador Externo" en Account y pásame su nombre (SF_EXTID_FIELD = Account.<ese_nombre>).')
     } catch (e: any) {
       push('❌ ' + (e?.message || e))
     } finally {

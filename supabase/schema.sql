@@ -29,6 +29,7 @@ create table if not exists casos (
   id                text primary key,    -- SF Case Id
   numero            text,                -- CaseNumber
   nit               text,               -- Case.AccountNumber__c ("Nit Cliente")
+  nit_ext           text,               -- Identificador Externo (Distrito/Élite comparten NIT)
   cuenta_nombre     text,               -- Account.Name
   tipo_registro     text,               -- RecordType.Name (debe ser 'SOPORTE TECNICO')
   estado            text,               -- Status
@@ -47,6 +48,7 @@ create table if not exists casos (
   sincronizado_en   timestamptz default now()
 );
 create index if not exists idx_casos_nit on casos(nit);
+create index if not exists idx_casos_nit_ext on casos(nit_ext);
 create index if not exists idx_casos_abierto on casos(abierto);
 create index if not exists idx_casos_apertura on casos(fecha_apertura);
 create index if not exists idx_casos_cierre on casos(fecha_cierre);
@@ -66,12 +68,18 @@ create table if not exists geocache (
 -- ── Vista: casos enriquecidos con el segmento del cliente ──
 -- Aquí ocurre el cruce por NIT. El front consulta esta vista, no Salesforce.
 -- Un caso cuyo NIT no está en la base queda 'Sin clasificar' (sigue contando).
+-- El cruce por NIT tiene un caso especial: Distrito y Élite (entidades
+-- distritales de Bogotá) COMPARTEN el NIT (899999061) y se diferencian por el
+-- Identificador Externo (899999061013, …). La base los trae con ese identificador
+-- en la misma columna del NIT. Por eso se cruza PRIMERO por nit_ext (identificador
+-- externo) y, si no encontró, por el NIT normal.
 create or replace view casos_segmentados as
 select
   c.*,
-  coalesce(cl.segmento, 'Sin clasificar') as segmento,
-  cl.gestionado,
-  cl.nombre as cliente_base
+  coalesce(cle.segmento, cln.segmento, 'Sin clasificar') as segmento,
+  coalesce(cle.gestionado, cln.gestionado)               as gestionado,
+  coalesce(cle.nombre, cln.nombre)                        as cliente_base
 from casos c
-left join clientes cl on cl.nit = c.nit
-where c.estado is distinct from 'Cancelado';   -- doble candado anti-cancelado
+left join clientes cle on cle.nit = c.nit_ext   -- 1º por Identificador Externo
+left join clientes cln on cln.nit = c.nit        -- 2º por NIT
+where c.estado is distinct from 'Cancelado';     -- doble candado anti-cancelado

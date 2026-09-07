@@ -14,7 +14,7 @@ function autorizado(req: Request): boolean {
   return (req.headers.get('authorization') || '') === `Bearer ${secret}`
 }
 
-const PATRON = /(ciudad|direccion|dirección|localidad|barrio|city|address|street|ubicac|municipio|departamento|state)/i
+const PATRON = /(ciudad|direccion|dirección|localidad|barrio|city|address|street|ubicac|municipio|departamento|state|externo|external|identificad|documento|nit|codigo|código)/i
 
 async function run(req: Request) {
   if (!autorizado(req)) {

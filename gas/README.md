@@ -32,6 +32,12 @@ mapa de calor. Todos los segmentos (Distrito, Élite, Premium, Mayoristas, Silve
      `SF_CITY_NAME_FIELD=Ciudad_Instalacion__r.Name`,
      `SF_ADDRESS_FIELD=Direccion_Instalacion__c`,
      `SF_RECORD_TYPE=SOPORTE TECNICO`, `SF_WINDOW_DAYS=60`.
+   - **Distrito/Élite (identificador externo):** comparten el NIT de Bogotá, así
+     que se diferencian por el Identificador Externo. Pon `SF_EXTID_FIELD` con el
+     nombre API del campo (suele estar en la cuenta → `Account.<ApiName>`). En la
+     hoja `BASE_CLIENTES`, esos clientes deben venir con el identificador externo
+     en la MISMA columna `ID_IDENTIFICACION`. El cruce usa primero ese
+     identificador y, si no encuentra, el NIT.
 
 5. **Prueba la conexión.** Menú *Monitor ETB → Probar conexión Salesforce*.
    La primera vez Google pide autorizar permisos (llamadas externas + la hoja).
