@@ -72,7 +72,12 @@ export function Sidebar({
       </nav>
 
       <div className="border-t border-white/5 px-5 py-3">
-        <div className="text-[10.5px] text-slate-600">Datos: Salesforce · Supabase</div>
+        <div className="text-[10.5px] leading-relaxed text-slate-500">Desarrollado por</div>
+        <div className="text-[11.5px] font-semibold text-slate-300">Carlos Iván Urrego</div>
+        <div className="mt-1 flex items-center justify-between text-[10px] text-slate-600">
+          <span>Salesforce · Supabase</span>
+          <span className="rounded bg-white/5 px-1.5 py-0.5 font-semibold text-slate-400">v2.0.3</span>
+        </div>
       </div>
     </aside>
   )

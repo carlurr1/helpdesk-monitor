@@ -47,8 +47,10 @@ export async function GET(req: Request) {
     const faltantes = OPCIONALES.filter((c) => !extra.includes(c))
     if (faltantes.length) rows = rows.map((r) => { const o: any = { ...r }; faltantes.forEach((c) => { if (o[c] === undefined) o[c] = null }); return o })
 
-    // Filtros (categoría/estado/cliente) del lado servidor.
-    const clienteNombre = (r: Caso) => r.cuenta_nombre || r.cliente_base || r.nit || ''
+    // Filtros (categoría/estado/cliente) del lado servidor. El fallback debe
+    // coincidir con el de computeOperativo ('Sin cliente') para que al hacer
+    // click en "Sin cliente" en el top-clientes el filtro sí encuentre esos casos.
+    const clienteNombre = (r: Caso) => r.cuenta_nombre || r.cliente_base || r.nit || 'Sin cliente'
     const rowsFiltradas: Caso[] = rows.filter((r: Caso) => {
       if (cats.length && !cats.includes(categoriaDe(r))) return false
       if (estado && r.estado !== estado) return false
@@ -142,7 +144,7 @@ function filaTabla(r: Caso, now: Date) {
   const edad = edadDias(r, now)
   return {
     id: r.id, numero: r.numero,
-    cliente: r.cuenta_nombre || r.cliente_base || r.nit || '—',
+    cliente: r.cuenta_nombre || r.cliente_base || r.nit || 'Sin cliente',
     estado: r.estado || '', categoria: categoriaDe(r), tipologia: r.tipologia || '',
     proceso: r.proceso || '', origen: r.origen || '',
     ciudad: r.ciudad || '', direccion: r.direccion || '',
