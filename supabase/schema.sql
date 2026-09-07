@@ -73,7 +73,10 @@ create table if not exists geocache (
 -- Identificador Externo (899999061013, …). La base los trae con ese identificador
 -- en la misma columna del NIT. Por eso se cruza PRIMERO por nit_ext (identificador
 -- externo) y, si no encontró, por el NIT normal.
-create or replace view casos_segmentados as
+-- Nota: al agregar columnas a `casos`, `create or replace view` falla porque
+-- `c.*` corre las posiciones. Por eso se BORRA y se recrea.
+drop view if exists casos_segmentados;
+create view casos_segmentados as
 select
   c.*,
   coalesce(cle.segmento, cln.segmento, 'Sin clasificar') as segmento,
