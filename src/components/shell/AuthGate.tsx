@@ -54,7 +54,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             Ingresar
           </button>
         </form>
-        <p className="mt-4 text-center text-[11px] text-slate-600">Uso interno · Datos de Salesforce protegidos</p>
+        <p className="mt-4 text-center text-[11px] text-slate-600">Desarrollado por Carlos Iván Urrego · v2.0.3</p>
       </div>
     </div>
   )
