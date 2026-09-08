@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const PAG = 1000 // Supabase corta cada consulta en 1000 filas: hay que paginar.
+const CAP_TABLA = 5000 // techo de filas de abiertos que se mandan a la tabla (para que el buscador alcance cualquier caso).
 
 // Columnas base que usa el cálculo. `direccion` se agrega solo si la columna
 // existe (la app no debe romperse si no se corrió el ALTER).
@@ -103,9 +104,11 @@ export async function GET(req: Request) {
     const ej = computeEjecutivo(rowsFiltradas, now)
     const dist = computeDistribuciones(rowsFiltradas)
 
-    // Tabla de abiertos (cap para no inflar el payload; el Excel usa ?export=1).
+    // Tabla de abiertos. Se mandan TODOS los abiertos (con un techo alto de
+    // seguridad) para que el buscador de la tabla encuentre cualquier caso; la UI
+    // limita cuántas filas pinta a la vez. El Excel completo usa ?export=1.
     const abiertosAll = rowsFiltradas.filter((r) => r.abierto)
-    const abiertos = abiertosAll.slice(0, 500).map((r) => filaTabla(r, now))
+    const abiertos = abiertosAll.slice(0, CAP_TABLA).map((r) => filaTabla(r, now))
 
     // Estados y clientes disponibles (del segmento completo, sin filtrar por cats/estado/cliente).
     const estados = [...new Set(rows.map((r: Caso) => r.estado).filter(Boolean))].sort()
@@ -159,6 +162,7 @@ function filaTabla(r: Caso, now: Date) {
   return {
     id: r.id, numero: r.numero,
     cliente: r.cuenta_nombre || r.cliente_base || r.nit || 'Sin cliente',
+    segmento: r.segmento || 'Sin clasificar',
     estado: r.estado || '', categoria: categoriaDe(r), tipologia: r.tipologia || '',
     proceso: r.proceso || '', origen: r.origen || '',
     ciudad: r.ciudad || '', direccion: r.direccion || '',
