@@ -1,0 +1,63 @@
+# Sincroniza Salesforce → Supabase de forma frecuente, sin depender de un
+# servicio externo (cron-job.org) que se apaga en silencio. Corre en GitHub
+# Actions (gratis e ilimitado en repos públicos) y llama al endpoint /api/sync.
+#
+# REQUISITO (una sola vez): agrega el secreto del repo con el mismo valor que
+# tiene CRON_SECRET en Vercel:
+#   GitHub → Settings → Secrets and variables → Actions → New repository secret
+#   Name: CRON_SECRET     Value: <el mismo CRON_SECRET de Vercel>
+# (Opcional) Variable para cambiar la URL sin tocar el código:
+#   Settings → Secrets and variables → Actions → Variables → New variable
+#   Name: SYNC_BASE_URL   Value: https://helpdesk-monitor-roan.vercel.app
+name: Sync Salesforce a Supabase
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # cada 10 min (GitHub puede retrasarlo unos minutos)
+  workflow_dispatch:          # botón "Run workflow" para dispararlo a mano
+    inputs:
+      horas:
+        description: 'Ventana incremental en horas. Vacío = sincronización COMPLETA (para ponerse al día).'
+        required: false
+        default: '3'
+
+# Evita que dos corridas se pisen si una tarda más de lo normal.
+concurrency:
+  group: sync-salesforce
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SYNC_BASE_URL: ${{ vars.SYNC_BASE_URL }}
+          EVENT: ${{ github.event_name }}
+          IN_HORAS: ${{ github.event.inputs.horas }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en el repo (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          BASE="${SYNC_BASE_URL:-https://helpdesk-monitor-roan.vercel.app}"
+
+          # Programado → incremental de 3h (solape amplio por si GitHub se retrasa;
+          # el upsert es idempotente, repetir no daña nada).
+          # Manual → usa las horas indicadas; vacío = sync completo.
+          if [ "$EVENT" = "workflow_dispatch" ]; then HORAS="${IN_HORAS:-}"; else HORAS="3"; fi
+          URL="$BASE/api/sync"
+          if [ -n "$HORAS" ]; then URL="$URL?horas=$HORAS"; fi
+
+          echo "POST $URL"
+          code=$(curl -sS --max-time 300 -o /tmp/out.json -w '%{http_code}' \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" "$URL" || true)
+          echo "HTTP $code"
+          cat /tmp/out.json 2>/dev/null || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::El sync respondió HTTP $code"
+            exit 1
+          fi
