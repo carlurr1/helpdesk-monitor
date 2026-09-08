@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SEMAFORO_LABEL, type Semaforo } from '@/lib/metrics'
 import { CAT_COLOR } from '@/lib/metrics'
 import type { FilaTabla } from '@/lib/types'
@@ -21,14 +21,41 @@ export function CasosTablaSemaforo({
   const [filtro, setFiltro] = useState<'all' | Semaforo>('all')
   const [q, setQ] = useState('')
   const [menu, setMenu] = useState<string | null>(null)
+  const [remoto, setRemoto] = useState<FilaTabla[]>([])
+  const [buscandoRemoto, setBuscandoRemoto] = useState(false)
+
+  // Búsqueda directa en el servidor (con debounce): halla CUALQUIER caso por
+  // número —aunque esté cerrado, en otro segmento o fuera del tope— porque los
+  // filtros/segmento del tablero no lo alcanzan. Se fusiona con las filas locales.
+  const t = q.trim()
+  useEffect(() => {
+    if (t.length < 3) { setRemoto([]); setBuscandoRemoto(false); return }
+    setBuscandoRemoto(true)
+    const ctrl = new AbortController()
+    const id = setTimeout(() => {
+      fetch(`/api/casos?buscar=${encodeURIComponent(t)}`, { signal: ctrl.signal })
+        .then((r) => r.json())
+        .then((j) => setRemoto(Array.isArray(j?.resultados) ? j.resultados : []))
+        .catch(() => {})
+        .finally(() => setBuscandoRemoto(false))
+    }, 350)
+    return () => { ctrl.abort(); clearTimeout(id) }
+  }, [t])
+
+  // Base = filas locales (abiertos del segmento) + resultados remotos, sin duplicar por id.
+  const base = useMemo(() => {
+    if (!remoto.length) return abiertos
+    const ids = new Set(abiertos.map((x) => x.id))
+    return [...abiertos, ...remoto.filter((x) => !ids.has(x.id))]
+  }, [abiertos, remoto])
 
   const filtradas = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    return abiertos.filter((x) => (filtro === 'all' || x.sem === filtro) &&
-      (!t || x.numero.toLowerCase().includes(t) || x.cliente.toLowerCase().includes(t) ||
-        (x.segmento || '').toLowerCase().includes(t) ||
-        (x.id_legado || '').toLowerCase().includes(t) || (x.id_servicio || '').toLowerCase().includes(t)))
-  }, [abiertos, filtro, q])
+    const s = q.trim().toLowerCase()
+    return base.filter((x) => (filtro === 'all' || x.sem === filtro || !!s) &&
+      (!s || x.numero.toLowerCase().includes(s) || x.cliente.toLowerCase().includes(s) ||
+        (x.segmento || '').toLowerCase().includes(s) ||
+        (x.id_legado || '').toLowerCase().includes(s) || (x.id_servicio || '').toLowerCase().includes(s)))
+  }, [base, filtro, q])
   // Sin búsqueda se pintan solo las primeras filas (DOM liviano); al buscar se
   // recorren y muestran TODAS las coincidencias, para hallar cualquier caso.
   const buscando = q.trim().length > 0
@@ -46,6 +73,7 @@ export function CasosTablaSemaforo({
           <div className="relative">
             <svg className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar caso, cliente, ID…" className="field w-56 pl-8" />
+            {buscandoRemoto && <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-[var(--muted)]">buscando…</span>}
           </div>
           <div className="flex overflow-hidden rounded-lg border border-[var(--border-strong)]">
             {PILLS.map((p) => (
@@ -85,7 +113,10 @@ export function CasosTablaSemaforo({
                   )}
                 </td>
                 <td><span className="badge badge-neutral">{r.segmento || '—'}</span></td>
-                <td><span className="badge badge-neutral">{r.estado || '—'}</span></td>
+                <td>
+                  <span className="badge badge-neutral">{r.estado || '—'}</span>
+                  {r.abierto === false && <span className="badge badge-warning ml-1">Cerrado</span>}
+                </td>
                 <td className="max-w-[240px] truncate text-[var(--text-2)]" title={r.tipologia}>{r.tipologia || '—'}</td>
                 <td>
                   <span className="inline-flex items-center gap-1.5 text-[var(--text-2)]">
