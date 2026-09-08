@@ -12,7 +12,8 @@ const badge: Record<Semaforo, string> = { critical: 'badge-danger', warning: 'ba
 function fecha(s: string | null) {
   return s ? new Date(s).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 }
-const COLS = ['Semáforo', 'Caso', 'Cliente', 'Estado', 'Tipología', 'Categoría', 'Proceso', 'Origen', 'Apertura', 'Antigüedad', 'Ciudad', 'Dirección', 'ID Servicio', 'ID Legado']
+const COLS = ['Semáforo', 'Caso', 'Cliente', 'Segmento', 'Estado', 'Tipología', 'Categoría', 'Proceso', 'Origen', 'Apertura', 'Antigüedad', 'Ciudad', 'Dirección', 'ID Servicio', 'ID Legado']
+const RENDER_CAP = 400 // filas que se pintan sin búsqueda (el buscador sí recorre todas).
 
 export function CasosTablaSemaforo({
   abiertos, total, onCliente,
@@ -21,11 +22,18 @@ export function CasosTablaSemaforo({
   const [q, setQ] = useState('')
   const [menu, setMenu] = useState<string | null>(null)
 
-  const visibles = useMemo(() => {
+  const filtradas = useMemo(() => {
     const t = q.trim().toLowerCase()
     return abiertos.filter((x) => (filtro === 'all' || x.sem === filtro) &&
-      (!t || x.numero.toLowerCase().includes(t) || x.cliente.toLowerCase().includes(t) || (x.id_legado || '').toLowerCase().includes(t) || (x.id_servicio || '').toLowerCase().includes(t)))
+      (!t || x.numero.toLowerCase().includes(t) || x.cliente.toLowerCase().includes(t) ||
+        (x.segmento || '').toLowerCase().includes(t) ||
+        (x.id_legado || '').toLowerCase().includes(t) || (x.id_servicio || '').toLowerCase().includes(t)))
   }, [abiertos, filtro, q])
+  // Sin búsqueda se pintan solo las primeras filas (DOM liviano); al buscar se
+  // recorren y muestran TODAS las coincidencias, para hallar cualquier caso.
+  const buscando = q.trim().length > 0
+  const visibles = buscando ? filtradas : filtradas.slice(0, RENDER_CAP)
+  const ocultas = filtradas.length - visibles.length
 
   return (
     <div className="card">
@@ -50,7 +58,7 @@ export function CasosTablaSemaforo({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="tbl min-w-[1400px]">
+        <table className="tbl min-w-[1550px]">
           <thead>
             <tr>{COLS.map((c) => <th key={c}>{c}</th>)}</tr>
           </thead>
@@ -76,6 +84,7 @@ export function CasosTablaSemaforo({
                     </div>
                   )}
                 </td>
+                <td><span className="badge badge-neutral">{r.segmento || '—'}</span></td>
                 <td><span className="badge badge-neutral">{r.estado || '—'}</span></td>
                 <td className="max-w-[240px] truncate text-[var(--text-2)]" title={r.tipologia}>{r.tipologia || '—'}</td>
                 <td>
@@ -97,6 +106,11 @@ export function CasosTablaSemaforo({
           </tbody>
         </table>
       </div>
+      {ocultas > 0 && (
+        <div className="border-t border-[var(--border)] px-4 py-2.5 text-[12px] text-[var(--muted)]">
+          Mostrando {visibles.length.toLocaleString('es-CO')} de {filtradas.length.toLocaleString('es-CO')}. Usa el buscador (caso, cliente, segmento o ID) para encontrar cualquiera de los {ocultas.toLocaleString('es-CO')} restantes.
+        </div>
+      )}
     </div>
   )
 }

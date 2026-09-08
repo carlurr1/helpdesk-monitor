@@ -43,6 +43,7 @@ export interface FilaTabla {
   id: string
   numero: string
   cliente: string
+  segmento: string
   estado: string
   categoria: string
   tipologia: string
