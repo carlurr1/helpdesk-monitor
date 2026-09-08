@@ -49,6 +49,20 @@ export async function GET(req: Request) {
     const extra = OPCIONALES.filter((_, i) => presentes[i])
     const cols = [...COLS_BASE, ...extra]
 
+    // Búsqueda directa de un caso: ignora segmento, filtros, tope y abierto/cerrado.
+    // Sirve para hallar CUALQUIER caso por número (o parte), aunque esté cerrado o
+    // en otro segmento. Devuelve pocas filas ya listas para la tabla.
+    const buscar = (searchParams.get('buscar') || '').replace(/[%_,\s]/g, '')
+    if (buscar) {
+      const { data } = await sb.from('casos_segmentados').select(cols.join(', '))
+        .ilike('numero', `%${buscar}%`).limit(50)
+      const now = new Date()
+      const resultados = (data ?? [])
+        .filter((r: any) => !esExcluida(r.cuenta_nombre))
+        .map((r: any) => ({ ...filaTabla(r as Caso, now), abierto: r.abierto === true }))
+      return NextResponse.json({ ok: true, buscar, resultados })
+    }
+
     let rows = await traerFilas(sb, filtrar ? (segmento as string) : null, cols.join(', '))
     // Rellena con null las columnas que no existen para una forma uniforme.
     const faltantes = OPCIONALES.filter((c) => !extra.includes(c))

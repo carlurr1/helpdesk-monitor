@@ -56,6 +56,7 @@ export interface FilaTabla {
   fecha_apertura: string | null
   edad: number
   sem: 'critical' | 'warning' | 'healthy'
+  abierto?: boolean // solo lo trae la búsqueda directa (puede incluir cerrados).
 }
 
 // Distribución simple (para donas / barras).
