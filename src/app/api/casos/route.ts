@@ -7,6 +7,8 @@ import type { Caso } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store' // nunca cachear lecturas (la fecha de última sync se quedaba pegada)
+export const revalidate = 0
 export const maxDuration = 60
 
 const PAG = 1000 // Supabase corta cada consulta en 1000 filas: hay que paginar.
@@ -142,8 +144,23 @@ export async function GET(req: Request) {
     for (const s of SEGMENTOS) porSegmento[s] = tally[s.normalize('NFC')] || 0
 
     // Última sincronización con Salesforce (para distinguir de la relectura).
-    const { data: syncRow } = await sb.from('casos').select('sincronizado_en').order('sincronizado_en', { ascending: false }).limit(1)
+    // La fila más reciente por sincronizado_en. NULLS LAST para no traer una fila
+    // con la fecha en null si existiera.
+    const { data: syncRow } = await sb.from('casos')
+      .select('sincronizado_en')
+      .not('sincronizado_en', 'is', null)
+      .order('sincronizado_en', { ascending: false, nullsFirst: false })
+      .limit(1)
     const sincronizado = (syncRow && syncRow[0]?.sincronizado_en) || null
+    // Diagnóstico: cuántas filas se sincronizaron en la última hora y las 5 fechas
+    // más recientes (para confirmar si la sync está escribiendo sincronizado_en).
+    const haceUnaHora = new Date(Date.now() - 3600_000).toISOString()
+    const { count: recientes1h } = await sb.from('casos')
+      .select('id', { count: 'exact', head: true })
+      .gte('sincronizado_en', haceUnaHora)
+    const { data: top5 } = await sb.from('casos')
+      .select('sincronizado_en').not('sincronizado_en', 'is', null)
+      .order('sincronizado_en', { ascending: false, nullsFirst: false }).limit(5)
 
     return NextResponse.json({
       ok: true,
@@ -164,6 +181,8 @@ export async function GET(req: Request) {
         casosAbiertos: abiertosAll.length,
         clientesAbiertos: op.kpis.clientesAbiertos,
         clientesDistintos: new Set(abiertosAll.map((r) => r.cuenta_nombre || r.cliente_base || r.nit || '?')).size,
+        sincronizadoTop5: (top5 ?? []).map((r: any) => r.sincronizado_en),
+        sincronizadosUltimaHora: recientes1h ?? 0,
       },
     })
   } catch (e: any) {
