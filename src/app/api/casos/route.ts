@@ -132,7 +132,7 @@ export async function GET(req: Request) {
     // "Casos abiertos"). Se talla: si es "Todos", desde las ya traídas; si es un
     // segmento, con un barrido liviano de `segmento, abierto`.
     const porSegmento: Record<string, number> = {}
-    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'segmento, abierto, cuenta_nombre', null) : rows
+    const filasParaTally = filtrar ? await fetchSecuencial(sb, 'id, segmento, abierto, cuenta_nombre', null) : rows
     const tally: Record<string, number> = {}
     for (const r of filasParaTally as any[]) {
       if (!r.abierto || esExcluida(r.cuenta_nombre)) continue
@@ -192,20 +192,37 @@ async function columnaExiste(sb: SupabaseClient, col: string): Promise<boolean> 
 }
 
 /**
- * Fetch SECUENCIAL hasta una página incompleta. NO depende del count exacto, que
- * en esta vista con joins puede venir mal (devolvía 909 cuando había >1000). El
- * filtro .eq va ANTES de order()/range() (aplicarlo después lo rompe con acentos).
+ * Fetch por KEYSET (no por offset). La paginación con .range() sobre `id` de texto
+ * puede SALTARSE filas cuando la colación del `id` no impone un orden total estricto
+ * (dos ids distintos "empatan" en la colación), y así se perdían casos aunque
+ * existieran en la vista (p. ej. un abierto que no salía en su segmento). Aquí se
+ * avanza con `id >= último` y se deduplica por id: nunca se salta una fila.
+ * El filtro .eq va ANTES de order()/limit() (aplicarlo después lo rompe con acentos).
+ * NOTA: `cols` debe incluir `id` (lo necesita el keyset).
  */
 async function fetchSecuencial(sb: SupabaseClient, cols: string, segmento: string | null): Promise<any[]> {
   const rows: any[] = []
-  for (let desde = 0; ; desde += PAG) {
-    const sel = segmento
+  const vistos = new Set<string>()
+  let ultimo: string | null = null
+  for (;;) {
+    let sel = segmento
       ? sb.from('casos_segmentados').select(cols).eq('segmento', segmento)
       : sb.from('casos_segmentados').select(cols)
-    const { data, error } = await sel.order('id', { ascending: true }).range(desde, desde + PAG - 1)
+    // >= (no >) para no saltarse filas cuya `id` empate en la colación con `ultimo`;
+    // la deduplicación por id quita el solape del borde.
+    if (ultimo !== null) sel = sel.gte('id', ultimo)
+    const { data, error } = await sel.order('id', { ascending: true }).limit(PAG)
     if (error) throw error
-    rows.push(...(data ?? []))
-    if (!data || data.length < PAG) break
+    const lote = data ?? []
+    const nuevos = lote.filter((r: any) => !vistos.has(r.id))
+    for (const r of nuevos as any[]) vistos.add(r.id)
+    rows.push(...nuevos)
+    if (lote.length < PAG) break
+    const sig = (lote[lote.length - 1] as any).id as string
+    // Protección anti-bucle: si una página llena no aporta filas nuevas y el borde
+    // no avanza, cortamos (no debería pasar con ids únicos de Salesforce).
+    if (!nuevos.length && sig === ultimo) break
+    ultimo = sig
   }
   return rows
 }
